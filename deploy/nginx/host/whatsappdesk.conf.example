@@ -1,0 +1,59 @@
+# Host nginx — install on the server (same pattern as your other apps).
+#
+#   sudo cp deploy/nginx/host/whatsappdesk.conf.example \
+#     /etc/nginx/sites-available/whatsappdesk.techfindconsulting.africa
+#   sudo ln -sf /etc/nginx/sites-available/whatsappdesk.techfindconsulting.africa \
+#     /etc/nginx/sites-enabled/
+#   sudo nginx -t && sudo systemctl reload nginx
+#
+# Issue TLS (if not already):
+#   sudo certbot --nginx -d whatsappdesk.techfindconsulting.africa
+#
+# Before certificates exist, use whatsappdesk.http-bootstrap.conf.example instead
+# (HTTP proxy only, no redirect to HTTPS).
+
+upstream whatsappdesk_ui {
+    server 127.0.0.1:3001;
+    keepalive 16;
+}
+
+server {
+    listen 80;
+    listen [::]:80;
+    server_name whatsappdesk.techfindconsulting.africa;
+
+    # Match webroot used by your existing certbot / other vhosts if different.
+    location ^~ /.well-known/acme-challenge/ {
+        root /var/www/html;
+        default_type "text/plain";
+        try_files $uri =404;
+    }
+
+    location / {
+        return 301 https://$host$request_uri;
+    }
+}
+
+server {
+    listen 443 ssl;
+    listen [::]:443 ssl;
+    http2 on;
+    server_name whatsappdesk.techfindconsulting.africa;
+
+    ssl_certificate     /etc/letsencrypt/live/whatsappdesk.techfindconsulting.africa/fullchain.pem;
+    ssl_certificate_key /etc/letsencrypt/live/whatsappdesk.techfindconsulting.africa/privkey.pem;
+    include /etc/letsencrypt/options-ssl-nginx.conf;
+    ssl_dhparam /etc/letsencrypt/ssl-dhparams.pem;
+
+    location / {
+        proxy_pass http://whatsappdesk_ui;
+        proxy_http_version 1.1;
+        proxy_set_header Host $host;
+        proxy_set_header X-Real-IP $remote_addr;
+        proxy_set_header X-Forwarded-For $proxy_add_x_forwarded_for;
+        proxy_set_header X-Forwarded-Proto $scheme;
+        proxy_set_header Connection "";
+        proxy_read_timeout 120s;
+        proxy_buffering off;
+    }
+}

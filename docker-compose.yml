@@ -1,11 +1,8 @@
-# Next.js UI + nginx for whatsappdesk.techfindconsulting.africa
+# Next.js UI only — terminate TLS and reverse-proxy on the HOST nginx (ports 80/443).
 #
 #   docker compose up --build -d
 #
-# Public: http(s)://whatsappdesk.techfindconsulting.africa (ports 80/443 on the host)
-# API proxy (server-side): set API_URL in .env (default: bot.techfindconsulting.africa)
-#
-# TLS: start on HTTP, then run deploy/certbot/issue-cert.sh and enable whatsappdesk.ssl.conf
+# UI (localhost): http://127.0.0.1:3001  →  configure host nginx from deploy/nginx/host/
 
 name: techfind-ui
 
@@ -13,6 +10,8 @@ services:
   ui:
     build: .
     restart: unless-stopped
+    ports:
+      - '127.0.0.1:${UI_PORT:-3001}:3001'
     environment:
       NODE_ENV: production
       PORT: 3001
@@ -30,24 +29,3 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
-
-  nginx:
-    image: nginx:1.27-alpine
-    restart: unless-stopped
-    ports:
-      - '80:80'
-      - '443:443'
-    volumes:
-      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
-      - ./deploy/certbot/conf:/etc/letsencrypt:ro
-      - ./deploy/certbot/www:/var/www/certbot:ro
-    depends_on:
-      ui:
-        condition: service_healthy
-
-  certbot:
-    profiles: ['certbot']
-    image: certbot/certbot:latest
-    volumes:
-      - ./deploy/certbot/conf:/etc/letsencrypt
-      - ./deploy/certbot/www:/var/www/certbot

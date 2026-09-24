@@ -35,9 +35,6 @@ yarn-error.log*
 .env.*
 !.env.example
 
-# TLS material (issue on the server via certbot)
-/deploy/certbot/conf/*
-!/deploy/certbot/conf/.gitkeep
 
 # vercel
 .vercel
