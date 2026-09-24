@@ -1,30 +1,24 @@
 "use client";
 
-import { ConversationsPanel } from "@/components/conversations-panel";
-import { OverviewPanel } from "@/components/overview-panel";
-import { statusLabel } from "@/components/status-pill";
+import { DisconnectedBanner } from "@/components/disconnected-banner";
+import { QrConnect } from "@/components/qr-connect";
 import {
   ApiError,
-  createConnectApi,
   fetchConnectLink,
   messageFromError,
   pairConnectLink,
   stopConnectPair,
 } from "@/lib/api";
+import { formatPhone } from "@/lib/format";
+import { isWhatsappDisconnected } from "@/lib/owner-copy";
 import type { ConnectLink } from "@/lib/types";
-import { QrConnect } from "./qr-connect";
-import { useEffect, useMemo, useState } from "react";
-
-type Tab = "overview" | "conversations" | "whatsapp";
-
-function ignoreUnauthorized() {}
+import { useEffect, useState } from "react";
 
 export function ConnectScreen({ token }: { token: string }) {
-  const api = useMemo(() => createConnectApi(token), [token]);
   const [link, setLink] = useState<ConnectLink | null>(null);
   const [error, setError] = useState<string | null>(null);
-  const [tab, setTab] = useState<Tab>("overview");
   const [pairing, setPairing] = useState(false);
+  const [startPairing, setStartPairing] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -61,17 +55,19 @@ export function ConnectScreen({ token }: { token: string }) {
     };
   }, [token, pairing]);
 
+  const disconnected = isWhatsappDisconnected(link?.status ?? null);
+
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:px-6">
+    <main className="mx-auto min-h-screen w-full max-w-lg px-4 py-8 sm:px-6">
       <p className="text-sm font-medium tracking-[0.16em] text-accent uppercase">
-        Your desk
+        WhatsApp linking
       </p>
-      <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-        {link?.name ?? "Your WhatsApp number"}
+      <h1 className="mt-2 text-2xl font-semibold tracking-tight">
+        {link?.name ?? "Link your business number"}
       </h1>
-      <p className="mt-2 max-w-xl text-sm text-muted">
-        Today&apos;s numbers, the funnel, and conversations on this page are
-        only for this business.
+      <p className="mt-2 text-sm text-muted">
+        This page is for scanning a QR code only. Sign in to your portal to see
+        chats and today&apos;s numbers.
       </p>
 
       {error ? (
@@ -81,64 +77,32 @@ export function ConnectScreen({ token }: { token: string }) {
       ) : null}
 
       {!link && !error ? (
-        <p className="mt-6 text-sm text-muted">Opening your desk…</p>
+        <p className="mt-6 text-sm text-muted">Loading…</p>
+      ) : null}
+
+      {link && disconnected ? (
+        <div className="mt-6">
+          <DisconnectedBanner onReconnect={() => setStartPairing(true)} />
+        </div>
       ) : null}
 
       {link ? (
-        <>
-          <div className="mt-6 mb-5 flex flex-wrap items-center gap-2">
-            {(
-              [
-                ["overview", "Overview"],
-                ["conversations", "Conversations"],
-                ["whatsapp", "WhatsApp"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                aria-pressed={tab === id}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-                  tab === id
-                    ? "bg-accent text-accent-ink"
-                    : "border border-line bg-card text-foreground"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-            <span className="ml-auto text-sm text-muted">{statusLabel(link.status)}</span>
-          </div>
-          {tab === "overview" ? (
-            <OverviewPanel
-              api={api}
-              tenantId="self"
-              flow={link.flow}
-              onUnauthorized={ignoreUnauthorized}
-            />
+        <section className="mt-6 rounded-2xl border border-line bg-card p-5">
+          {link.linkedPhone ? (
+            <p className="mb-4 text-sm text-muted">
+              Last linked number: {formatPhone(link.linkedPhone)}
+            </p>
           ) : null}
-          {tab === "conversations" ? (
-            <ConversationsPanel
-              api={api}
-              tenantId="self"
-              onUnauthorized={ignoreUnauthorized}
-            />
-          ) : null}
-          {tab === "whatsapp" ? (
-            <section className="max-w-xl rounded-2xl border border-line bg-card p-5">
-              <QrConnect
-                link={link}
-                onPair={() => pairConnectLink(token)}
-                onStopPair={() => stopConnectPair(token)}
-                onActiveChange={setPairing}
-                connectedNote="This number is connected."
-              />
-            </section>
-          ) : null}
-        </>
+          <QrConnect
+            link={link}
+            startPairing={startPairing}
+            onPair={() => pairConnectLink(token)}
+            onStopPair={() => stopConnectPair(token)}
+            onActiveChange={setPairing}
+            connectedNote="This number is connected."
+          />
+        </section>
       ) : null}
     </main>
   );
 }
-

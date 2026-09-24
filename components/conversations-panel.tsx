@@ -7,6 +7,7 @@ import {
   type TenantReadApi,
 } from "@/lib/api";
 import {
+  conversationAvatarLabel,
   conversationDisplayName,
   datePresetRange,
   formatDaySeparator,
@@ -16,6 +17,11 @@ import {
   nairobiDateKey,
   type ConversationDatePreset,
 } from "@/lib/format";
+import {
+  conversationStateLabel,
+  type DeskAudience,
+} from "@/lib/owner-copy";
+import { WhatsAppFormattedText } from "@/lib/whatsapp-format";
 import type {
   ConversationDetail,
   ConversationListItem,
@@ -63,11 +69,13 @@ export function ConversationsPanel({
   tenantId,
   onUnauthorized,
   onTotalChange,
+  audience = "staff",
 }: {
   api: TenantReadApi;
   tenantId: string;
   onUnauthorized: () => void;
   onTotalChange?: (total: number | null) => void;
+  audience?: DeskAudience;
 }) {
   const [datePreset, setDatePreset] = useState<ConversationDatePreset>("all");
   const [draft, setDraft] = useState<ConversationQuery>(EMPTY_FILTERS);
@@ -105,6 +113,16 @@ export function ConversationsPanel({
   useEffect(() => {
     onTotalChange?.(result?.total ?? null);
   }, [result?.total, onTotalChange]);
+
+  useEffect(() => {
+    if (selectedId || !result?.items.length) {
+      return;
+    }
+    const desktop = window.matchMedia("(min-width: 768px)").matches;
+    if (desktop) {
+      setSelectedId(result.items[0]!.id);
+    }
+  }, [result?.items, selectedId]);
 
   useEffect(() => {
     let cancelled = false;
@@ -222,7 +240,7 @@ export function ConversationsPanel({
       }
       const preview = previews[item.id]?.text ?? "";
       const haystack = [
-        conversationDisplayName(item),
+        conversationDisplayName(item, audience),
         item.customerPhone,
         item.businessName ?? "",
         item.demoMode ?? "",
@@ -232,7 +250,7 @@ export function ConversationsPanel({
         .toLowerCase();
       return haystack.includes(search);
     });
-  }, [result?.items, queueFilter, listSearch, previews]);
+  }, [result?.items, queueFilter, listSearch, previews, audience]);
 
   const queueCounts = useMemo(() => {
     const items = result?.items ?? [];
@@ -278,33 +296,82 @@ export function ConversationsPanel({
             type="search"
             value={listSearch}
             onChange={(event) => setListSearch(event.target.value)}
-            placeholder="Search number or business"
+            placeholder={
+              audience === "owner" ? "Search by number" : "Search number or business"
+            }
             className="w-full rounded-xl border border-line bg-white py-2.5 pr-3 pl-9 text-sm outline-none focus:border-accent"
           />
         </label>
 
-        <div className="mb-3 flex flex-wrap gap-2">
-          {(
-            [
-              ["all", "All", queueCounts.all],
-              ["needs_you", "Needs you", queueCounts.needs_you],
-              ["bot", "Bot", queueCounts.bot],
-            ] as const
-          ).map(([id, label, count]) => (
-            <button
-              key={id}
-              type="button"
-              onClick={() => setQueueFilter(id)}
-              className={`rounded-full px-3 py-1 text-xs font-semibold ${
-                queueFilter === id
-                  ? "bg-foreground text-background"
-                  : "border border-line bg-white text-foreground"
-              }`}
-            >
-              {label} {count}
-            </button>
-          ))}
-        </div>
+        {audience === "staff" ? (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {(
+              [
+                ["all", "All", queueCounts.all],
+                ["needs_you", "Needs you", queueCounts.needs_you],
+                ["bot", "Bot", queueCounts.bot],
+              ] as const
+            ).map(([id, label, count]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => setQueueFilter(id)}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  queueFilter === id
+                    ? "bg-foreground text-background"
+                    : "border border-line bg-white text-foreground"
+                }`}
+              >
+                {label} {count}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {(
+              [
+                ["all", "All"],
+                ["ready", "Ready to buy"],
+                ["week", "This week"],
+              ] as const
+            ).map(([id, label]) => (
+              <button
+                key={id}
+                type="button"
+                onClick={() => {
+                  if (id === "all") {
+                    setQueueFilter("all");
+                    setDatePreset("all");
+                    applyFilters({ ...draft, leadScore: "" }, "all");
+                    return;
+                  }
+                  if (id === "ready") {
+                    setQueueFilter("all");
+                    const next = { ...draft, leadScore: "HOT" as const };
+                    setDraft(next);
+                    applyFilters(next, datePreset);
+                    return;
+                  }
+                  setQueueFilter("all");
+                  setDatePreset("7d");
+                  applyFilters(draft, "7d");
+                }}
+                className={`rounded-full px-3 py-1 text-xs font-semibold ${
+                  (id === "all" &&
+                    queueFilter === "all" &&
+                    datePreset === "all" &&
+                    !draft.leadScore) ||
+                  (id === "ready" && draft.leadScore === "HOT") ||
+                  (id === "week" && datePreset === "7d")
+                    ? "bg-foreground text-background"
+                    : "border border-line bg-white text-foreground"
+                }`}
+              >
+                {label}
+              </button>
+            ))}
+          </div>
+        )}
 
         <div className="mb-3 grid gap-2 sm:grid-cols-2">
           <select
@@ -400,6 +467,7 @@ export function ConversationsPanel({
                 item={item}
                 selected={item.id === selectedId}
                 preview={previews[item.id]}
+                audience={audience}
                 onSelect={() => selectConversation(item.id)}
               />
             ))}
@@ -458,6 +526,7 @@ export function ConversationsPanel({
         ) : (
           <ConversationThread
             detail={detail}
+            audience={audience}
             onBack={() => setMobileThreadOpen(false)}
             onHandoff={async () => {
               const next = await api.handoffConversation(tenantId, detail.id);
@@ -479,18 +548,24 @@ function ConversationListRow({
   item,
   selected,
   preview,
+  audience,
   onSelect,
 }: {
   item: ConversationListItem;
   selected: boolean;
   preview?: MessagePreview;
+  audience: DeskAudience;
   onSelect: () => void;
 }) {
   const inHandoff = item.currentState === "HUMAN_HANDOFF";
   const activityAt = preview?.at ?? item.createdAt;
   const previewText =
     preview?.text?.trim() ||
-    (inHandoff ? "Waiting for staff reply" : "Open to load messages");
+    (audience === "staff" && inHandoff
+      ? "Waiting for staff reply"
+      : "Open to load messages");
+  const avatar = conversationAvatarLabel(item);
+  const stateLabel = conversationStateLabel(item.currentState, audience);
 
   return (
     <li>
@@ -504,15 +579,17 @@ function ConversationListRow({
         }`}
       >
         <div className="flex items-start gap-2.5">
-          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-stone-100 text-xs font-semibold text-muted">
-            {item.businessName
-              ? item.businessName.slice(0, 2).toUpperCase()
-              : item.customerPhone.replace(/\D/g, "").slice(-2) || "?"}
+          <span className="mt-0.5 flex h-9 w-9 shrink-0 items-center justify-center rounded-full bg-emerald-100 text-xs font-semibold text-emerald-900">
+            {avatar.kind === "initials" ? (
+              avatar.text
+            ) : (
+              <UserRound className="h-4 w-4 text-muted" aria-hidden />
+            )}
           </span>
           <span className="min-w-0 flex-1">
             <span className="flex items-start justify-between gap-2">
               <span className="truncate font-medium">
-                {conversationDisplayName(item)}
+                {conversationDisplayName(item, audience)}
               </span>
               <span className="shrink-0 text-xs text-muted">
                 {formatRelativeActivity(activityAt)}
@@ -523,18 +600,24 @@ function ConversationListRow({
               {item.demoMode ? (
                 <Tag tone="sky">{labelize(item.demoMode)} demo</Tag>
               ) : null}
-              <Tag tone="sand">{labelize(item.currentState)}</Tag>
-              {item.leadScore ? (
-                <ScoreBadge score={item.leadScore} />
+              {audience === "staff" ? (
+                <>
+                  <Tag tone="sand">{stateLabel}</Tag>
+                  {item.leadScore ? (
+                    <ScoreBadge score={item.leadScore} />
+                  ) : (
+                    <Tag tone="muted">No score</Tag>
+                  )}
+                  {inHandoff ? (
+                    <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-800">
+                      <Hand className="h-3 w-3" aria-hidden />
+                      Handoff
+                    </span>
+                  ) : null}
+                </>
               ) : (
-                <Tag tone="muted">No score</Tag>
+                <span className="text-xs font-medium text-accent">{stateLabel}</span>
               )}
-              {inHandoff ? (
-                <span className="inline-flex items-center gap-0.5 text-xs font-semibold text-amber-800">
-                  <Hand className="h-3 w-3" aria-hidden />
-                  Handoff
-                </span>
-              ) : null}
             </span>
           </span>
         </div>
@@ -564,12 +647,14 @@ function Tag({
 
 function ConversationThread({
   detail,
+  audience,
   onBack,
   onHandoff,
   onResumeAutomation,
   onUnauthorized,
 }: {
   detail: ConversationDetail;
+  audience: DeskAudience;
   onBack: () => void;
   onHandoff: () => Promise<void>;
   onResumeAutomation: () => Promise<void>;
@@ -647,10 +732,12 @@ function ConversationThread({
     return rows;
   }, [detail.messages]);
 
+  const stateLabel = conversationStateLabel(detail.currentState, audience);
+
   return (
-    <div className="flex h-full min-h-[32rem] flex-col">
-      <header className="border-b border-line px-4 py-3">
-        <div className="flex items-start gap-2">
+    <div className="flex h-full min-h-0 max-h-[calc(100vh-12rem)] flex-col md:max-h-[calc(100vh-10rem)]">
+      <header className="shrink-0 border-b border-line px-4 py-3">
+        <div className="flex min-w-0 items-start gap-2">
           <button
             type="button"
             onClick={onBack}
@@ -661,89 +748,103 @@ function ConversationThread({
           </button>
           <div className="min-w-0 flex-1">
             <h2 className="truncate text-lg font-semibold">
-              {conversationDisplayName({
-                customerPhone: detail.customerPhone,
-                businessName: lead?.businessName ?? null,
-              })}
+              {conversationDisplayName(
+                {
+                  customerPhone: detail.customerPhone,
+                  businessName: lead?.businessName ?? null,
+                },
+                audience,
+              )}
             </h2>
-            <p className="text-sm text-muted">
+            <p className="truncate text-sm text-muted">
               {detail.demoMode ? `${labelize(detail.demoMode)} demo` : "No demo"}
               {" · "}
-              {labelize(detail.currentState)}
+              {stateLabel}
             </p>
           </div>
-          <details className="relative text-sm">
-            <summary className="cursor-pointer list-none rounded-full border border-line px-3 py-1 text-muted marker:hidden">
-              {lead ? "Lead profile" : "Lead profile not captured"}
-            </summary>
-            {lead ? (
-              <div className="absolute right-0 z-10 mt-2 w-72 rounded-xl border border-line bg-card p-3 shadow-lg">
-                <dl className="space-y-2 text-sm">
-                  <Field label="Business" value={lead.businessName} />
-                  <Field label="Score" value={lead.leadScore} />
-                  <Field label="Summary" value={lead.conversationSummary} />
-                </dl>
-              </div>
-            ) : (
-              <p className="absolute right-0 z-10 mt-2 w-56 rounded-xl border border-line bg-card p-3 text-sm text-muted shadow-lg">
-                No lead profile yet.
-              </p>
-            )}
-          </details>
+          {audience === "staff" ? (
+            <details className="relative shrink-0 text-sm">
+              <summary className="cursor-pointer list-none rounded-full border border-line px-3 py-1 text-muted marker:hidden">
+                {lead ? "Lead profile" : "Lead profile not captured"}
+              </summary>
+              {lead ? (
+                <div className="absolute right-0 z-10 mt-2 w-72 rounded-xl border border-line bg-card p-3 shadow-lg">
+                  <dl className="space-y-2 text-sm">
+                    <Field label="Business" value={lead.businessName} />
+                    <Field label="Score" value={lead.leadScore} />
+                    <Field label="Summary" value={lead.conversationSummary} />
+                  </dl>
+                </div>
+              ) : (
+                <p className="absolute right-0 z-10 mt-2 w-56 rounded-xl border border-line bg-card p-3 text-sm text-muted shadow-lg">
+                  No lead profile yet.
+                </p>
+              )}
+            </details>
+          ) : null}
         </div>
       </header>
 
-      <div
-        className={`mx-4 mt-3 flex flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm ${
-          inHandoff
-            ? "border-amber-200 bg-amber-50 text-amber-950"
-            : "border-emerald-200 bg-emerald-50 text-emerald-950"
-        }`}
-      >
-        <p className="flex min-w-0 items-start gap-2">
+      {audience === "owner" ? (
+        <div className="mx-4 mt-3 shrink-0 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2.5 text-sm text-emerald-950">
+          <p className="flex min-w-0 items-center gap-2">
+            <Bot className="h-4 w-4 shrink-0" aria-hidden />
+            Your assistant is replying to this customer.
+          </p>
+        </div>
+      ) : (
+        <div
+          className={`mx-4 mt-3 flex shrink-0 flex-wrap items-center justify-between gap-3 rounded-xl border px-3 py-2.5 text-sm ${
+            inHandoff
+              ? "border-amber-200 bg-amber-50 text-amber-950"
+              : "border-emerald-200 bg-emerald-50 text-emerald-950"
+          }`}
+        >
+          <p className="flex min-w-0 items-start gap-2 break-words">
+            {inHandoff ? (
+              <Hand className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            ) : (
+              <Bot className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            )}
+            <span>
+              {inHandoff
+                ? "You are handling this chat. The bot stays quiet until you hand it back."
+                : "Bot is handling this chat. Take over to pause automation for this customer."}
+            </span>
+          </p>
           {inHandoff ? (
-            <Hand className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run(onResumeAutomation)}
+              className="shrink-0 rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
+            >
+              Hand back to bot
+            </button>
           ) : (
-            <Bot className="mt-0.5 h-4 w-4 shrink-0" aria-hidden />
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() =>
+                run(async () => {
+                  const since = new Date().toISOString();
+                  setHandoffSince(since);
+                  await onHandoff();
+                })
+              }
+              className="shrink-0 rounded-full bg-foreground px-3 py-1.5 text-xs font-semibold text-background disabled:opacity-50"
+            >
+              Take over chat
+            </button>
           )}
-          <span>
-            {inHandoff
-              ? "You are handling this chat. The bot stays quiet until you hand it back."
-              : "Bot is handling this chat. Take over to pause automation for this customer."}
-          </span>
-        </p>
-        {inHandoff ? (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() => run(onResumeAutomation)}
-            className="shrink-0 rounded-full border border-amber-300 bg-white px-3 py-1.5 text-xs font-semibold disabled:opacity-50"
-          >
-            Hand back to bot
-          </button>
-        ) : (
-          <button
-            type="button"
-            disabled={busy}
-            onClick={() =>
-              run(async () => {
-                const since = new Date().toISOString();
-                setHandoffSince(since);
-                await onHandoff(since);
-              })
-            }
-            className="shrink-0 rounded-full bg-foreground px-3 py-1.5 text-xs font-semibold text-background disabled:opacity-50"
-          >
-            Take over chat
-          </button>
-        )}
-      </div>
+        </div>
+      )}
 
       {actionError ? (
-        <p className="mx-4 mt-2 text-sm text-rose-800">{actionError}</p>
+        <p className="mx-4 mt-2 shrink-0 text-sm text-rose-800">{actionError}</p>
       ) : null}
 
-      <ol className="min-h-0 flex-1 space-y-2 overflow-y-auto px-4 py-4">
+      <ol className="min-h-0 min-w-0 flex-1 space-y-2 overflow-y-auto px-4 py-4">
         {timeline.map((row) =>
           row.kind === "day" ? (
             <li key={row.key} className="flex justify-center py-2">
@@ -756,16 +857,19 @@ function ConversationThread({
               key={row.key}
               message={row.message}
               role={resolveRole(row.message)}
+              audience={audience}
             />
           ),
         )}
       </ol>
 
-      <p className="flex items-start gap-2 border-t border-line px-4 py-3 text-xs text-muted">
-        <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
-        Replies are sent by the bot. After you take over, the bot stays quiet in this chat
-        until you resume it.
-      </p>
+      {audience === "staff" ? (
+        <p className="flex shrink-0 items-start gap-2 border-t border-line px-4 py-3 text-xs text-muted">
+          <Info className="mt-0.5 h-3.5 w-3.5 shrink-0" aria-hidden />
+          Replies are sent by the bot. After you take over, the bot stays quiet in this chat
+          until you resume it.
+        </p>
+      ) : null}
     </div>
   );
 }
@@ -773,19 +877,26 @@ function ConversationThread({
 function MessageBubble({
   message,
   role,
+  audience,
 }: {
   message: ConversationDetail["messages"][number];
   role: MessageRole;
+  audience: DeskAudience;
 }) {
   const simulated =
     role === "bot" &&
     message.text?.toLowerCase().includes("simulated demo");
 
+  const body = message.text?.trim() ? message.text : "(no text)";
+
   if (role === "customer") {
     return (
-      <li className="max-w-[88%]">
+      <li className="max-w-[88%] min-w-0">
         <div className="rounded-2xl rounded-bl-md border border-line bg-white px-3 py-2 text-sm shadow-sm">
-          <p className="whitespace-pre-wrap">{message.text || "(no text)"}</p>
+          <WhatsAppFormattedText
+            text={body}
+            className="break-words whitespace-pre-wrap"
+          />
           <p className="mt-1 text-xs text-muted">
             Customer · {formatMessageTime(message.createdAt)}
           </p>
@@ -796,9 +907,12 @@ function MessageBubble({
 
   if (role === "staff") {
     return (
-      <li className="ml-auto max-w-[88%]">
+      <li className="ml-auto max-w-[88%] min-w-0">
         <div className="rounded-2xl rounded-br-md border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-950">
-          <p className="whitespace-pre-wrap">{message.text || "(no text)"}</p>
+          <WhatsAppFormattedText
+            text={body}
+            className="break-words whitespace-pre-wrap"
+          />
           <p className="mt-1 flex items-center gap-1 text-xs text-emerald-800">
             <UserRound className="h-3 w-3" aria-hidden />
             Staff · {formatMessageTime(message.createdAt)}
@@ -809,15 +923,19 @@ function MessageBubble({
   }
 
   return (
-    <li className="ml-auto max-w-[88%]">
-      <div className="rounded-2xl rounded-br-md bg-sidebar px-3 py-2 text-sm text-stone-100">
-        <p className="whitespace-pre-wrap">{message.text || "(no text)"}</p>
+    <li className="ml-auto max-w-[88%] min-w-0">
+      <div className="rounded-2xl rounded-br-md border border-emerald-200 bg-emerald-100/80 px-3 py-2 text-sm text-emerald-950">
+        <WhatsAppFormattedText
+          text={body}
+          className="break-words whitespace-pre-wrap"
+        />
         {simulated ? (
-          <p className="mt-1 text-xs italic text-emerald-200/90">Simulated demo</p>
+          <p className="mt-1 text-xs italic text-emerald-800/90">Simulated demo</p>
         ) : null}
-        <p className="mt-1 flex items-center gap-1 text-xs text-emerald-200">
+        <p className="mt-1 flex items-center gap-1 text-xs text-emerald-800">
           <Bot className="h-3 w-3" aria-hidden />
-          Bot · {formatMessageTime(message.createdAt)}
+          {audience === "owner" ? "Your assistant" : "Bot"} ·{" "}
+          {formatMessageTime(message.createdAt)}
         </p>
       </div>
     </li>

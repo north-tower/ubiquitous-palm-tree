@@ -1,3 +1,4 @@
+import { ownerHiddenNumberLabel, type DeskAudience } from "./owner-copy";
 import { TENANT_FLOW_OPTIONS, type TenantFlow } from "./types";
 
 const NAIROBI = "Africa/Nairobi";
@@ -95,19 +96,55 @@ export function isLikelyLidPhone(value: string): boolean {
   return digits.length >= 15;
 }
 
-export function conversationDisplayName(input: {
-  customerPhone: string;
-  businessName: string | null;
-}): string {
+export function conversationDisplayName(
+  input: {
+    customerPhone: string;
+    businessName: string | null;
+  },
+  audience: DeskAudience = "staff",
+): string {
   if (input.businessName?.trim()) {
     return input.businessName.trim();
   }
   if (isLikelyLidPhone(input.customerPhone)) {
+    if (audience === "owner") {
+      return ownerHiddenNumberLabel();
+    }
     const digits = input.customerPhone.replace(/\D/g, "");
     const tail = digits.slice(-4) || "????";
     return `Unknown number · LID …${tail}`;
   }
   return formatPhone(input.customerPhone);
+}
+
+export function conversationAvatarLabel(input: {
+  customerPhone: string;
+  businessName: string | null;
+  demoMode: string | null;
+}): { kind: "initials"; text: string } | { kind: "icon" } {
+  if (input.businessName?.trim()) {
+    const parts = input.businessName.trim().split(/\s+/);
+    const text =
+      parts.length >= 2
+        ? `${parts[0]![0] ?? ""}${parts[1]![0] ?? ""}`.toUpperCase()
+        : input.businessName.trim().slice(0, 2).toUpperCase();
+    return { kind: "initials", text: text || "?" };
+  }
+  if (input.demoMode?.trim()) {
+    return {
+      kind: "initials",
+      text: input.demoMode.trim().slice(0, 2).toUpperCase(),
+    };
+  }
+  if (isLikelyLidPhone(input.customerPhone)) {
+    return { kind: "icon" };
+  }
+  const phone = formatPhone(input.customerPhone);
+  const letters = phone.replace(/[^a-zA-Z]/g, "");
+  if (letters.length >= 2) {
+    return { kind: "initials", text: letters.slice(0, 2).toUpperCase() };
+  }
+  return { kind: "icon" };
 }
 
 export function formatRelativeActivity(value: string): string {

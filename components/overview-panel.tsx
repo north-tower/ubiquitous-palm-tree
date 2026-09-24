@@ -5,7 +5,16 @@ import {
   messageFromError,
   type TenantReadApi,
 } from "@/lib/api";
-import { labelize } from "@/lib/format";
+import { formatPhone, labelize } from "@/lib/format";
+import {
+  demoSectionTitle,
+  demoTableHeaders,
+  funnelLabelForAudience,
+  funnelSectionSubtitle,
+  funnelSectionTitle,
+  todayMetricsForAudience,
+  type DeskAudience,
+} from "@/lib/owner-copy";
 import type {
   BaileysSessionStatus,
   DashboardFunnel,
@@ -103,6 +112,8 @@ export function OverviewPanel({
   linkedPhone,
   ownerStatus,
   onConnectWhatsApp,
+  audience = "staff",
+  ownerEmail,
 }: {
   api: TenantReadApi;
   tenantId: string;
@@ -112,6 +123,8 @@ export function OverviewPanel({
   linkedPhone?: string | null;
   ownerStatus?: TenantOwnerStatus | null;
   onConnectWhatsApp?: () => void;
+  audience?: DeskAudience;
+  ownerEmail?: string;
 }) {
   const [reloadKey, setReloadKey] = useState(0);
   const requestKey = `${tenantId}:${reloadKey}`;
@@ -164,25 +177,31 @@ export function OverviewPanel({
   const loading = !today && !error;
   const flow = resolveFlow(today, funnel, flowHint);
   const todayFields =
-    flow === "enquiry_intake" ? ENQUIRY_TODAY_FIELDS : TECHFIND_TODAY_FIELDS;
+    audience === "owner"
+      ? todayMetricsForAudience(flow, "owner")
+      : flow === "enquiry_intake"
+        ? ENQUIRY_TODAY_FIELDS
+        : TECHFIND_TODAY_FIELDS;
 
   const funnelStages = useMemo(
     () => visibleFunnelStages(funnel?.stages ?? []),
     [funnel],
   );
   const maxCount = Math.max(...funnelStages.map((stage) => stage.count), 1);
-  const customerStageHidden = (funnel?.stages ?? []).some(
-    (stage) => stage.key === "customer" && stage.count === 0,
-  );
-
   const showSetupChecklist =
     !loading &&
     !error &&
     tenantNeverConnected(whatsappStatus, linkedPhone) &&
     whatsappConversationCount(funnel) === 0;
 
+  const ownerMetricsLayout = audience === "owner";
+
   return (
-    <div className="space-y-6">
+    <div
+      className={
+        audience === "owner" ? "mx-auto w-full max-w-5xl space-y-6" : "space-y-6"
+      }
+    >
       {error ? (
         <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
           {error}
@@ -190,10 +209,18 @@ export function OverviewPanel({
       ) : null}
 
       {showSetupChecklist ? (
-        <SetupChecklist
-          ownerStatus={ownerStatus}
-          onConnectWhatsApp={onConnectWhatsApp}
-        />
+        audience === "owner" ? (
+          <OwnerSetupChecklist
+            ownerEmail={ownerEmail}
+            linkedPhone={linkedPhone}
+            onConnectWhatsApp={onConnectWhatsApp}
+          />
+        ) : (
+          <SetupChecklist
+            ownerStatus={ownerStatus}
+            onConnectWhatsApp={onConnectWhatsApp}
+          />
+        )
       ) : (
         <>
           <div className="flex flex-wrap items-end justify-between gap-3">
@@ -225,7 +252,26 @@ export function OverviewPanel({
           </div>
 
           {loading ? (
-            <TodayMetricsSkeleton count={todayFields.length} />
+            <TodayMetricsSkeleton
+              count={todayFields.length}
+              ownerLayout={ownerMetricsLayout}
+            />
+          ) : ownerMetricsLayout ? (
+            <div className="grid grid-cols-2 gap-3 sm:grid-cols-4">
+              {todayFields.map((field) => (
+                <div
+                  key={field.key}
+                  className="rounded-2xl border border-line bg-card px-4 py-4 text-center"
+                >
+                  <p className="text-3xl font-semibold tracking-tight tabular-nums">
+                    {today![field.key]}
+                  </p>
+                  <p className="mt-1 min-h-[2.5rem] text-sm leading-snug text-muted">
+                    {field.label}
+                  </p>
+                </div>
+              ))}
+            </div>
           ) : (
             <div className="overflow-x-auto rounded-2xl border border-line bg-card">
               <div className="flex min-w-max divide-x divide-line">
@@ -235,7 +281,9 @@ export function OverviewPanel({
                     className="flex min-w-[5.5rem] flex-1 flex-col items-center px-3 py-4 sm:min-w-[6.5rem] sm:px-4"
                   >
                     <p className="text-center text-[0.65rem] font-medium tracking-wide text-muted uppercase sm:text-xs sm:normal-case">
-                      {field.shortLabel}
+                      {"shortLabel" in field
+                        ? (field as TodayField).shortLabel
+                        : field.label}
                     </p>
                     <p className="mt-2 text-2xl font-semibold tracking-tight sm:text-3xl">
                       {today![field.key]}
@@ -256,14 +304,14 @@ export function OverviewPanel({
             <section className="rounded-2xl border border-line bg-card p-4 sm:p-5">
               <div className="mb-4 flex flex-wrap items-baseline justify-between gap-2">
                 <div>
-                  <h2 className="text-lg font-semibold">Funnel</h2>
+                  <h2 className="text-lg font-semibold">
+                    {funnelSectionTitle(audience)}
+                  </h2>
                   <p className="text-sm text-muted">
-                    {flow === "enquiry_intake"
-                      ? "all enquiries, all time"
-                      : "all conversations, all time"}
+                    {funnelSectionSubtitle(flow, audience)}
                   </p>
                 </div>
-                {!loading && funnelStages.length > 0 ? (
+                {!loading && funnelStages.length > 0 && audience === "staff" ? (
                   <p className="text-xs text-muted">Conversion from previous step</p>
                 ) : null}
               </div>
@@ -279,22 +327,20 @@ export function OverviewPanel({
                       index={index}
                       stages={funnelStages}
                       maxCount={maxCount}
+                      audience={audience}
                     />
                   ))}
                 </div>
               )}
 
-              {customerStageHidden && !loading ? (
-                <p className="mt-4 text-xs text-muted italic">
-                  &ldquo;Customer&rdquo; stage is hidden until conversions are tracked.
-                </p>
-              ) : null}
             </section>
 
             {flow === "techfind_demo" ? (
               <div className="space-y-4">
                 <section className="rounded-2xl border border-line bg-card p-4 sm:p-5">
-                  <h2 className="mb-3 text-lg font-semibold">By demo</h2>
+                  <h2 className="mb-3 text-lg font-semibold">
+                    {demoSectionTitle(audience)}
+                  </h2>
                   {loading ? (
                     <DemoTableSkeleton />
                   ) : (
@@ -302,10 +348,18 @@ export function OverviewPanel({
                       <table className="w-full text-left text-sm">
                         <thead className="text-xs text-muted">
                           <tr>
-                            <th className="pb-2 font-medium">Demo</th>
-                            <th className="pb-2 text-right font-medium">Started</th>
-                            <th className="pb-2 text-right font-medium">Done</th>
-                            <th className="pb-2 text-right font-medium">Qualified</th>
+                            <th className="pb-2 font-medium">
+                              {audience === "owner" ? "Service" : "Demo"}
+                            </th>
+                            <th className="pb-2 text-right font-medium">
+                              {demoTableHeaders(audience).started}
+                            </th>
+                            <th className="pb-2 text-right font-medium">
+                              {demoTableHeaders(audience).completed}
+                            </th>
+                            <th className="pb-2 text-right font-medium">
+                              {demoTableHeaders(audience).leads}
+                            </th>
                           </tr>
                         </thead>
                         <tbody>
@@ -339,18 +393,29 @@ function FunnelRow({
   index,
   stages,
   maxCount,
+  audience,
 }: {
   stage: FunnelStage;
   index: number;
   stages: FunnelStage[];
   maxCount: number;
+  audience: DeskAudience;
 }) {
   const conversion = conversionDisplay(stage, index, stages);
   const barWidth = maxCount > 0 ? (stage.count / maxCount) * 100 : 0;
+  const label = funnelLabelForAudience(stage.key, stage.label, audience);
 
   return (
-    <div className="grid grid-cols-[minmax(5.5rem,7.5rem)_minmax(0,1fr)_2rem_2.75rem] items-center gap-x-2 text-sm sm:grid-cols-[minmax(6.5rem,9rem)_minmax(0,1fr)_2.5rem_3rem] sm:gap-x-3">
-      <span className="truncate text-muted">{stage.label}</span>
+    <div
+      className={`grid items-center gap-x-2 text-sm sm:gap-x-3 ${
+        audience === "owner"
+          ? "grid-cols-[minmax(8rem,11rem)_minmax(0,1fr)_2.5rem]"
+          : "grid-cols-[minmax(5.5rem,7.5rem)_minmax(0,1fr)_2rem_2.75rem] sm:grid-cols-[minmax(6.5rem,9rem)_minmax(0,1fr)_2.5rem_3rem]"
+      }`}
+    >
+      <span className={audience === "owner" ? "text-muted" : "truncate text-muted"}>
+        {label}
+      </span>
       <div className="h-2 overflow-hidden rounded-full bg-stone-100">
         <div
           className="h-full rounded-full bg-accent transition-[width] duration-300"
@@ -358,10 +423,137 @@ function FunnelRow({
         />
       </div>
       <span className="text-right text-sm font-semibold tabular-nums">{stage.count}</span>
-      <span className="text-right text-xs text-muted tabular-nums sm:text-sm">
-        {conversion}
-      </span>
+      {audience === "staff" ? (
+        <span className="text-right text-xs text-muted tabular-nums sm:text-sm">
+          {conversion}
+        </span>
+      ) : null}
     </div>
+  );
+}
+
+function waMeHref(phone: string | null | undefined): string | null {
+  if (!phone?.trim()) {
+    return null;
+  }
+  const digits = phone.replace(/\D/g, "");
+  if (!digits) {
+    return null;
+  }
+  return `https://wa.me/${digits}`;
+}
+
+function OwnerSetupChecklist({
+  ownerEmail,
+  linkedPhone,
+  onConnectWhatsApp,
+}: {
+  ownerEmail?: string;
+  linkedPhone?: string | null;
+  onConnectWhatsApp?: () => void;
+}) {
+  const testHref = waMeHref(linkedPhone);
+  const steps = [
+    {
+      id: "account",
+      title: "Your account is ready",
+      detail: ownerEmail
+        ? `You're signed in as ${ownerEmail}.`
+        : "You're signed in to your portal.",
+      done: true,
+    },
+    {
+      id: "whatsapp",
+      title: "Connect your WhatsApp",
+      detail:
+        "Link the phone that runs your business number. Your assistant starts replying as soon as it's linked.",
+      done: false,
+      action: onConnectWhatsApp ? (
+        <button
+          type="button"
+          onClick={onConnectWhatsApp}
+          className="mt-3 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-ink"
+        >
+          Show QR code
+        </button>
+      ) : null,
+    },
+    {
+      id: "test",
+      title: "Send a test message",
+      detail: linkedPhone
+        ? `From another phone, message ${formatPhone(linkedPhone)} and watch your assistant reply.`
+        : "From another phone, message your business number and watch your assistant reply.",
+      done: false,
+      action: testHref ? (
+        <a
+          href={testHref}
+          target="_blank"
+          rel="noopener noreferrer"
+          className="mt-3 inline-flex rounded-full border border-line bg-white px-4 py-2 text-sm font-semibold text-foreground hover:bg-stone-50"
+        >
+          Send a test message
+        </a>
+      ) : (
+        <p className="mt-2 text-xs text-muted">
+          Available once your number is linked.
+        </p>
+      ),
+    },
+  ];
+
+  const completed = steps.filter((step) => step.done).length;
+
+  return (
+    <section className="overflow-hidden rounded-2xl border border-line bg-card">
+      <div
+        className="h-1 bg-accent/20"
+        aria-hidden
+      >
+        <div
+          className="h-full bg-accent transition-[width]"
+          style={{ width: `${(completed / steps.length) * 100}%` }}
+        />
+      </div>
+      <div className="p-5 sm:p-6">
+        <h2 className="text-lg font-semibold">
+          Let&apos;s get your WhatsApp assistant running
+        </h2>
+        <p className="mt-1 text-sm text-muted">
+          Three quick steps and customers can reach your assistant on WhatsApp.
+        </p>
+        <ol className="mt-6 space-y-4">
+          {steps.map((step, index) => (
+            <li
+              key={step.id}
+              className={`rounded-xl border px-4 py-3 ${
+                step.done
+                  ? "border-line bg-stone-50/50"
+                  : "border-emerald-200/80 bg-emerald-50/40"
+              }`}
+            >
+              <div className="flex gap-3">
+                <span className="mt-0.5 shrink-0" aria-hidden>
+                  {step.done ? (
+                    <Check className="h-5 w-5 text-accent" strokeWidth={2.5} />
+                  ) : (
+                    <Circle className="h-5 w-5 text-line" strokeWidth={1.75} />
+                  )}
+                </span>
+                <div className="min-w-0">
+                  <p className="font-medium">
+                    <span className="text-muted">{index + 1}. </span>
+                    {step.title}
+                  </p>
+                  <p className="mt-0.5 text-sm text-muted">{step.detail}</p>
+                  {step.action}
+                </div>
+              </div>
+            </li>
+          ))}
+        </ol>
+      </div>
+    </section>
   );
 }
 
@@ -452,7 +644,33 @@ function SkeletonBar({ className }: { className?: string }) {
   );
 }
 
-function TodayMetricsSkeleton({ count }: { count: number }) {
+function TodayMetricsSkeleton({
+  count,
+  ownerLayout,
+}: {
+  count: number;
+  ownerLayout?: boolean;
+}) {
+  if (ownerLayout) {
+    return (
+      <div
+        className="grid grid-cols-2 gap-3 sm:grid-cols-4"
+        aria-busy="true"
+        aria-label="Loading today metrics"
+      >
+        {Array.from({ length: count }, (_, index) => (
+          <div
+            key={index}
+            className="rounded-2xl border border-line bg-card px-4 py-4 text-center"
+          >
+            <SkeletonBar className="mx-auto h-8 w-10 rounded-lg" />
+            <SkeletonBar className="mx-auto mt-3 h-3 w-20" />
+          </div>
+        ))}
+      </div>
+    );
+  }
+
   return (
     <div
       className="overflow-hidden rounded-2xl border border-line bg-card"

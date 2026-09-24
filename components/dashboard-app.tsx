@@ -674,6 +674,7 @@ function Desk({
                 tenantId={selected.id}
                 flow={selected.flow}
                 onUnauthorized={logout}
+                audience="staff"
                 whatsappStatus={liveStatus}
                 linkedPhone={selected.linkedPhone}
                 ownerStatus={selected.ownerStatus}
@@ -687,6 +688,7 @@ function Desk({
                 tenantId={selected.id}
                 onUnauthorized={logout}
                 onTotalChange={setConversationTotal}
+                audience="staff"
               />
             ) : null}
             {tab === "whatsapp" ? (

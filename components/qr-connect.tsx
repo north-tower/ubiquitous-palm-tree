@@ -30,6 +30,8 @@ export function QrConnect({
   connectedNote,
   layout = "compact",
   connectToken,
+  hideOwnerLink = false,
+  startPairing = false,
 }: {
   link: QrLink;
   onPair: () => Promise<unknown>;
@@ -38,6 +40,8 @@ export function QrConnect({
   connectedNote: string;
   layout?: "compact" | "desk";
   connectToken?: string | null;
+  hideOwnerLink?: boolean;
+  startPairing?: boolean;
 }) {
   const [armed, setArmed] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -48,6 +52,13 @@ export function QrConnect({
   onPairRef.current = onPair;
   onStopRef.current = onStopPair;
   onActiveRef.current = onActiveChange;
+
+  useEffect(() => {
+    if (startPairing && link.status !== "connected") {
+      ignoreWaiting.current = false;
+      setArmed(true);
+    }
+  }, [startPairing, link.status]);
 
   useEffect(() => {
     if (
@@ -117,6 +128,7 @@ export function QrConnect({
         armed={armed}
         error={error}
         connectToken={connectToken}
+        hideOwnerLink={hideOwnerLink}
         onGenerate={() => {
           ignoreWaiting.current = false;
           setError(null);
@@ -136,7 +148,7 @@ export function QrConnect({
       <h2 className="mt-1 text-2xl font-semibold">{statusLabel(link.status)}</h2>
       <p className="mt-2 text-sm">
         {link.linkedPhone
-          ? `Linked number ${formatPhone(link.linkedPhone)}`
+          ? `Last linked number ${formatPhone(link.linkedPhone)}`
           : "No number linked yet."}
       </p>
 
@@ -158,6 +170,7 @@ export function QrConnect({
             code. It stays up to date while this page is open, and stops when
             you leave.
           </p>
+          <ScanSteps />
         </div>
       ) : null}
 
@@ -166,11 +179,14 @@ export function QrConnect({
       ) : null}
 
       {!armed && link.status !== "connected" ? (
-        <p className="mt-4 text-sm text-muted">
-          {link.status === "logged_out"
-            ? "WhatsApp logged this session out. Generate a QR code when you want to link a phone."
-            : "Generate a QR code when you are ready to scan it from the phone."}
-        </p>
+        <>
+          <p className="mt-4 text-sm text-muted">
+            {link.status === "logged_out"
+              ? "WhatsApp logged this session out. Generate a QR code when you want to link a phone."
+              : "Generate a QR code when you are ready to scan it from the phone."}
+          </p>
+          <ScanSteps muted />
+        </>
       ) : null}
 
       {error ? <p className="mt-3 text-sm text-rose-700">{error}</p> : null}
@@ -208,6 +224,7 @@ function DeskQrConnect({
   armed,
   error,
   connectToken,
+  hideOwnerLink,
   onGenerate,
   onStop,
 }: {
@@ -215,6 +232,7 @@ function DeskQrConnect({
   armed: boolean;
   error: string | null;
   connectToken: string | null | undefined;
+  hideOwnerLink?: boolean;
   onGenerate: () => void;
   onStop: () => void;
 }) {
@@ -243,9 +261,11 @@ function DeskQrConnect({
           {error ? <p className="mt-4 text-sm text-rose-700">{error}</p> : null}
         </div>
 
-        <div className="min-w-0 lg:border-l lg:border-line lg:pl-10">
-          <OwnerLinkColumn connectToken={connectToken} />
-        </div>
+        {!hideOwnerLink ? (
+          <div className="min-w-0 lg:border-l lg:border-line lg:pl-10">
+            <OwnerLinkColumn connectToken={connectToken} />
+          </div>
+        ) : null}
       </div>
     </section>
   );

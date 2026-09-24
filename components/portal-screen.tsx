@@ -1,8 +1,9 @@
 "use client";
 
 import { ConversationsPanel } from "@/components/conversations-panel";
+import { DisconnectedBanner } from "@/components/disconnected-banner";
 import { OverviewPanel } from "@/components/overview-panel";
-import { statusLabel } from "@/components/status-pill";
+import { WhatsappPanel } from "@/components/whatsapp-panel";
 import {
   ApiError,
   createPortalApi,
@@ -10,11 +11,18 @@ import {
   messageFromError,
   type PortalApi,
 } from "@/lib/api";
+import { isWhatsappDisconnected } from "@/lib/owner-copy";
 import type { ConnectLink, PortalSession, TenantFlow } from "@/lib/types";
-import { QrConnect } from "./qr-connect";
+import { MessageSquare } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
 type Tab = "overview" | "conversations" | "whatsapp";
+
+const TAB_LABELS: Record<Tab, string> = {
+  overview: "Home",
+  conversations: "Chats",
+  whatsapp: "WhatsApp",
+};
 
 export function PortalScreen({
   session,
@@ -33,6 +41,11 @@ export function PortalScreen({
   const [tab, setTab] = useState<Tab>("overview");
   const [pairing, setPairing] = useState(false);
   const flow = (session.user.flow ?? "techfind_demo") as TenantFlow;
+  const disconnected = isWhatsappDisconnected(link?.status ?? null);
+  const showWhatsappAlert =
+    link?.status === "logged_out" ||
+    link?.status === null ||
+    link?.status === "waiting_for_scan";
 
   useEffect(() => {
     let cancelled = false;
@@ -74,30 +87,65 @@ export function PortalScreen({
   }, [api, pairing, onLogout]);
 
   return (
-    <main className="mx-auto min-h-screen max-w-6xl px-4 py-6 sm:px-6">
-      <div className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <p className="text-sm font-medium tracking-[0.16em] text-accent uppercase">
-            Your desk
-          </p>
-          <h1 className="mt-2 text-3xl font-semibold tracking-tight">
-            {link?.name ?? session.user.tenantName}
-          </h1>
-          <p className="mt-2 max-w-xl text-sm text-muted">
-            Signed in as {session.user.email}. Overview, conversations, and
-            WhatsApp linking are scoped to your business only.
-          </p>
+    <main className="mx-auto min-h-screen w-full max-w-5xl px-4 py-6 sm:px-6">
+      <header className="flex flex-wrap items-start justify-between gap-4 border-b border-line pb-4">
+        <div className="flex min-w-0 items-start gap-3">
+          <span className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-emerald-100 text-emerald-800">
+            <MessageSquare className="h-5 w-5" aria-hidden />
+          </span>
+          <div className="min-w-0">
+            <h1 className="truncate text-xl font-semibold tracking-tight sm:text-2xl">
+              {link?.name ?? session.user.tenantName}
+            </h1>
+            <p className="text-sm text-muted">Your WhatsApp desk</p>
+          </div>
         </div>
-        <button
-          type="button"
-          onClick={() => {
-            void api.logout().finally(onLogout);
-          }}
-          className="text-sm text-muted hover:text-foreground"
-        >
-          Sign out
-        </button>
-      </div>
+        <div className="text-right text-sm">
+          <p className="text-muted">Signed in as {session.user.email}</p>
+          <button
+            type="button"
+            onClick={() => {
+              void api.logout().finally(onLogout);
+            }}
+            className="mt-1 rounded-full border border-line bg-card px-3 py-1 text-sm font-medium hover:bg-white"
+          >
+            Sign out
+          </button>
+        </div>
+      </header>
+
+      <nav
+        className="mt-4 flex flex-wrap gap-2"
+        aria-label="Portal sections"
+      >
+        {(
+          [
+            ["overview", TAB_LABELS.overview],
+            ["conversations", TAB_LABELS.conversations],
+            ["whatsapp", TAB_LABELS.whatsapp],
+          ] as const
+        ).map(([id, label]) => (
+          <button
+            key={id}
+            type="button"
+            onClick={() => setTab(id)}
+            aria-current={tab === id ? "page" : undefined}
+            className={`relative rounded-full px-4 py-1.5 text-sm font-medium ${
+              tab === id
+                ? "bg-accent text-accent-ink"
+                : "border border-line bg-card text-foreground"
+            }`}
+          >
+            {label}
+            {id === "whatsapp" && showWhatsappAlert && tab !== "whatsapp" ? (
+              <span
+                className="absolute -top-0.5 -right-0.5 h-2 w-2 rounded-full bg-rose-500"
+                aria-hidden
+              />
+            ) : null}
+          </button>
+        ))}
+      </nav>
 
       {error ? (
         <p className="mt-6 rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
@@ -109,40 +157,26 @@ export function PortalScreen({
         <p className="mt-6 text-sm text-muted">Opening your desk…</p>
       ) : null}
 
+      {link && disconnected ? (
+        <div className="mt-5">
+          <DisconnectedBanner onReconnect={() => setTab("whatsapp")} />
+        </div>
+      ) : null}
+
       {link ? (
-        <>
-          <div className="mt-6 mb-5 flex flex-wrap items-center gap-2">
-            {(
-              [
-                ["overview", "Overview"],
-                ["conversations", "Conversations"],
-                ["whatsapp", "WhatsApp"],
-              ] as const
-            ).map(([id, label]) => (
-              <button
-                key={id}
-                type="button"
-                onClick={() => setTab(id)}
-                aria-pressed={tab === id}
-                className={`rounded-full px-4 py-1.5 text-sm font-medium ${
-                  tab === id
-                    ? "bg-accent text-accent-ink"
-                    : "border border-line bg-card text-foreground"
-                }`}
-              >
-                {label}
-              </button>
-            ))}
-            <span className="ml-auto text-sm text-muted">
-              {statusLabel(link.status)}
-            </span>
-          </div>
+        <div className="mt-6 min-w-0">
           {tab === "overview" ? (
             <OverviewPanel
               api={readApi}
               tenantId="self"
               flow={flow}
               onUnauthorized={onLogout}
+              audience="owner"
+              ownerEmail={session.user.email}
+              whatsappStatus={link.status}
+              linkedPhone={link.linkedPhone}
+              ownerStatus="active"
+              onConnectWhatsApp={() => setTab("whatsapp")}
             />
           ) : null}
           {tab === "conversations" ? (
@@ -150,20 +184,21 @@ export function PortalScreen({
               api={readApi}
               tenantId="self"
               onUnauthorized={onLogout}
+              audience="owner"
             />
           ) : null}
           {tab === "whatsapp" ? (
-            <section className="max-w-xl rounded-2xl border border-line bg-card p-5">
-              <QrConnect
-                link={link}
-                onPair={() => api.pairWhatsapp()}
-                onStopPair={() => api.stopPairWhatsapp()}
-                onActiveChange={setPairing}
-                connectedNote="This number is connected."
-              />
-            </section>
+            <WhatsappPanel
+              link={link}
+              connectToken={null}
+              flow={flow}
+              audience="owner"
+              onPair={() => api.pairWhatsapp()}
+              onStopPair={() => api.stopPairWhatsapp()}
+              onActiveChange={setPairing}
+            />
           ) : null}
-        </>
+        </div>
       ) : null}
     </main>
   );
