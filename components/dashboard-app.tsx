@@ -14,11 +14,27 @@ import {
   type DashboardTenantWhatsapp,
   type TenantFlow,
 } from "@/lib/types";
-import { useCallback, useEffect, useMemo, useRef, useState, type FormEvent } from "react";
+import { Plus, Search, X } from "lucide-react";
+import {
+  useCallback,
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type FormEvent,
+} from "react";
 import { ConversationsPanel } from "./conversations-panel";
 import { OverviewPanel } from "./overview-panel";
-import { StatusDot } from "./status-pill";
+import {
+  compareTenantsByDeskStatus,
+  deskCategoryLabel,
+  SessionStatusDot,
+  StatusPill,
+  tenantDeskCategory,
+} from "./status-pill";
 import { WhatsappPanel } from "./whatsapp-panel";
+
+type TenantSort = "status" | "name";
 
 type Tab = "overview" | "conversations" | "whatsapp";
 
@@ -189,6 +205,9 @@ function Desk({
   const [createNotice, setCreateNotice] = useState<string | null>(null);
   const [resending, setResending] = useState(false);
   const [pairing, setPairing] = useState(false);
+  const [newTenantOpen, setNewTenantOpen] = useState(false);
+  const [tenantSearch, setTenantSearch] = useState("");
+  const [tenantSort, setTenantSort] = useState<TenantSort>("status");
   const listRequest = useRef(0);
 
   const logout = onLogout;
@@ -302,6 +321,57 @@ function Desk({
   const liveStatus: BaileysSessionStatus | null =
     visibleLink?.status ?? selected?.status ?? null;
 
+  const duplicateNameKeys = useMemo(() => {
+    const counts = new Map<string, number>();
+    for (const tenant of tenants) {
+      const key = tenant.name.trim().toLowerCase();
+      counts.set(key, (counts.get(key) ?? 0) + 1);
+    }
+    return new Set(
+      [...counts.entries()].filter(([, count]) => count > 1).map(([key]) => key),
+    );
+  }, [tenants]);
+
+  const sidebarTenants = useMemo(() => {
+    const query = tenantSearch.trim().toLowerCase();
+    const withLiveStatus = tenants.map((tenant) => ({
+      ...tenant,
+      status:
+        tenant.id === selectedId && liveStatus !== null
+          ? liveStatus
+          : tenant.status,
+    }));
+    const filtered = query
+      ? withLiveStatus.filter((tenant) => {
+          const haystack = [
+            tenant.name,
+            tenant.ownerEmail ?? "",
+            flowLabel(tenant.flow),
+            tenant.linkedPhone ?? "",
+          ]
+            .join(" ")
+            .toLowerCase();
+          return haystack.includes(query);
+        })
+      : withLiveStatus;
+    return [...filtered].sort((a, b) =>
+      tenantSort === "name"
+        ? a.name.localeCompare(b.name, undefined, { sensitivity: "base" })
+        : compareTenantsByDeskStatus(a, b),
+    );
+  }, [tenants, tenantSearch, tenantSort, selectedId, liveStatus]);
+
+  function closeNewTenantModal() {
+    setNewTenantOpen(false);
+    setCreateNotice(null);
+    setCreateError(null);
+  }
+
+  function openNewTenantModal() {
+    setCreateError(null);
+    setNewTenantOpen(true);
+  }
+
   async function onCreate(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     setCreating(true);
@@ -336,6 +406,8 @@ function Desk({
               `Email failed (${emailResult.error}). Share this setup link: ${acceptUrl}`,
             );
           }
+        } else {
+          setNewTenantOpen(false);
         }
       }
     } catch (caught) {
@@ -398,99 +470,84 @@ function Desk({
           </button>
         </div>
 
-        <p className="mb-2 text-xs font-medium tracking-wide text-stone-400 uppercase">
-          Tenants
-        </p>
+        <div className="mb-3 flex items-center justify-between gap-2">
+          <p className="text-xs font-medium tracking-wide text-stone-400 uppercase">
+            Tenants
+          </p>
+          <button
+            type="button"
+            onClick={openNewTenantModal}
+            className="inline-flex items-center gap-1 rounded-full bg-emerald-400/15 px-2.5 py-1 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/25"
+          >
+            <Plus className="h-3.5 w-3.5" aria-hidden />
+            New tenant
+          </button>
+        </div>
+
+        <div className="mb-3 space-y-2">
+          <label className="relative block">
+            <Search
+              className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-stone-400"
+              aria-hidden
+            />
+            <input
+              type="search"
+              value={tenantSearch}
+              onChange={(event) => setTenantSearch(event.target.value)}
+              placeholder="Search tenants…"
+              className="w-full rounded-lg border border-white/15 bg-white/10 py-2 pr-3 pl-8 text-sm outline-none placeholder:text-white/40 focus:border-emerald-300"
+            />
+          </label>
+          <select
+            value={tenantSort}
+            onChange={(event) => setTenantSort(event.target.value as TenantSort)}
+            className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs outline-none focus:border-emerald-300"
+            aria-label="Sort tenants"
+          >
+            <option value="status" className="text-foreground">
+              Sort: status (needs attention first)
+            </option>
+            <option value="name" className="text-foreground">
+              Sort: name A–Z
+            </option>
+          </select>
+        </div>
+
         {listError ? <p className="mb-3 text-sm text-rose-200">{listError}</p> : null}
-        <ul className="space-y-1">
-          {tenants.map((tenant) => {
-            const active = tenant.id === selectedId;
-            const status =
-              tenant.id === selectedId ? liveStatus : tenant.status;
-            return (
-              <li key={tenant.id}>
-                <button
-                  type="button"
-                  onClick={() => setSelectedId(tenant.id)}
-                  className={`w-full rounded-xl px-3 py-2 text-left ${
-                    active ? "bg-white/10" : "hover:bg-white/5"
-                  }`}
-                >
-                  <span className="block font-medium">{tenant.name}</span>
-                  <span className="mt-1 block text-xs text-stone-300">
-                    {flowLabel(tenant.flow)}
-                    {tenant.linkedPhone ? ` · ${formatPhone(tenant.linkedPhone)}` : ""}
-                  </span>
-                  <span className="mt-1 block text-xs text-stone-300">
-                    <StatusDot status={status} />
-                  </span>
-                </button>
-              </li>
-            );
-          })}
-        </ul>
+        <TenantSidebarList
+          tenants={sidebarTenants}
+          selectedId={selectedId}
+          tenantSort={tenantSort}
+          duplicateNameKeys={duplicateNameKeys}
+          onSelect={setSelectedId}
+        />
         {tenants.length === 0 && !listError ? (
           <p className="mt-2 text-sm text-stone-300">No tenants yet.</p>
         ) : null}
-
-        <form onSubmit={onCreate} className="mt-6 space-y-3 border-t border-white/10 pt-4">
-          <p className="text-xs font-medium tracking-wide text-stone-400 uppercase">
-            New tenant
-          </p>
-          <input
-            value={name}
-            onChange={(event) => setName(event.target.value)}
-            placeholder="Business name"
-            required
-            maxLength={255}
-            className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm outline-none placeholder:text-white/40 focus:border-emerald-300"
-          />
-          <select
-            value={flow}
-            onChange={(event) => setFlow(event.target.value as TenantFlow)}
-            className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm outline-none focus:border-emerald-300"
-          >
-            {TENANT_FLOW_OPTIONS.map((option) => (
-              <option key={option.value} value={option.value} className="text-foreground">
-                {option.label}
-              </option>
-            ))}
-          </select>
-          <input
-            type="email"
-            value={ownerEmail}
-            onChange={(event) => setOwnerEmail(event.target.value)}
-            placeholder="Owner email"
-            required
-            className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm outline-none placeholder:text-white/40 focus:border-emerald-300"
-          />
-          <div className="grid grid-cols-2 gap-2">
-            <input
-              value={ownerFirstName}
-              onChange={(event) => setOwnerFirstName(event.target.value)}
-              placeholder="First name"
-              required
-              className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm outline-none placeholder:text-white/40 focus:border-emerald-300"
-            />
-            <input
-              value={ownerLastName}
-              onChange={(event) => setOwnerLastName(event.target.value)}
-              placeholder="Last name"
-              required
-              className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm outline-none placeholder:text-white/40 focus:border-emerald-300"
-            />
-          </div>
-          {createError ? <p className="text-sm text-rose-200">{createError}</p> : null}
-          {createNotice ? <p className="text-sm text-emerald-100">{createNotice}</p> : null}
-          <button
-            type="submit"
-            disabled={creating}
-            className="w-full rounded-full bg-emerald-400 px-3 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60"
-          >
-            {creating ? "Creating…" : "Create tenant"}
-          </button>
-        </form>
+        {tenants.length > 0 && sidebarTenants.length === 0 ? (
+          <p className="mt-2 text-sm text-stone-300">No tenants match your search.</p>
+        ) : null}
       </aside>
+
+      {newTenantOpen ? (
+        <NewTenantModal
+          name={name}
+          flow={flow}
+          ownerEmail={ownerEmail}
+          ownerFirstName={ownerFirstName}
+          ownerLastName={ownerLastName}
+          creating={creating}
+          createError={createError}
+          createNotice={createNotice}
+          onClose={closeNewTenantModal}
+          onNameChange={setName}
+          onFlowChange={setFlow}
+          onOwnerEmailChange={setOwnerEmail}
+          onOwnerFirstNameChange={setOwnerFirstName}
+          onOwnerLastNameChange={setOwnerLastName}
+          onSubmit={onCreate}
+        />
+      ) : null}
 
       <main className="min-w-0 px-4 py-5 sm:px-6 lg:px-8">
         {!selected ? (
@@ -503,10 +560,13 @@ function Desk({
           </div>
         ) : (
           <>
-            <header className="mb-5 flex flex-wrap items-end justify-between gap-3">
-              <div>
+            <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
+              <div className="min-w-0">
                 <p className="text-sm text-muted">{flowLabel(selected.flow)}</p>
-                <h1 className="text-2xl font-semibold tracking-tight">{selected.name}</h1>
+                <div className="mt-0.5 flex flex-wrap items-center gap-2">
+                  <h1 className="text-2xl font-semibold tracking-tight">{selected.name}</h1>
+                  <StatusPill status={liveStatus} />
+                </div>
                 {selected.ownerEmail ? (
                   <p className="mt-1 text-sm text-muted">
                     Portal: {selected.ownerEmail}
@@ -515,20 +575,38 @@ function Desk({
                   </p>
                 ) : null}
               </div>
-              <div className="flex flex-wrap items-center gap-3">
+              <div className="flex flex-wrap items-center gap-2">
+                {liveStatus !== "connected" ? (
+                  <button
+                    type="button"
+                    onClick={() => setTab("whatsapp")}
+                    className="rounded-full bg-accent px-4 py-1.5 text-sm font-semibold text-accent-ink"
+                  >
+                    Connect WhatsApp
+                  </button>
+                ) : null}
                 {selected.ownerStatus === "invited" ? (
                   <button
                     type="button"
                     disabled={resending}
                     onClick={() => void onResendOnboarding()}
-                    className="rounded-full border border-line bg-card px-3 py-1 text-sm disabled:opacity-60"
+                    className="rounded-full border border-line bg-card px-3 py-1.5 text-sm disabled:opacity-60"
                   >
                     {resending ? "Sending…" : "Resend onboarding email"}
                   </button>
                 ) : null}
-                <StatusDot status={liveStatus} />
               </div>
             </header>
+            {createNotice && !newTenantOpen ? (
+              <p className="mb-4 rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+                {createNotice}
+              </p>
+            ) : null}
+            {createError && !newTenantOpen ? (
+              <p className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+                {createError}
+              </p>
+            ) : null}
             <div className="mb-5 flex gap-2">
               {(
                 [
@@ -582,6 +660,274 @@ function Desk({
           </>
         )}
       </main>
+    </div>
+  );
+}
+
+function TenantSidebarList({
+  tenants,
+  selectedId,
+  tenantSort,
+  duplicateNameKeys,
+  onSelect,
+}: {
+  tenants: DashboardTenantSummary[];
+  selectedId: string | null;
+  tenantSort: TenantSort;
+  duplicateNameKeys: Set<string>;
+  onSelect: (id: string) => void;
+}) {
+  if (tenantSort === "status") {
+    let lastCategory: ReturnType<typeof tenantDeskCategory> | null = null;
+    return (
+      <ul className="space-y-1">
+        {tenants.map((tenant) => {
+          const category = tenantDeskCategory(tenant.status, tenant.ownerStatus);
+          const showHeading = category !== lastCategory;
+          lastCategory = category;
+          const showOwnerEmail = duplicateNameKeys.has(
+            tenant.name.trim().toLowerCase(),
+          );
+          return (
+            <li key={tenant.id}>
+              {showHeading ? (
+                <p className="mt-2 mb-1 px-1 text-[0.65rem] font-semibold tracking-wide text-stone-500 uppercase first:mt-0">
+                  {deskCategoryLabel(category)}
+                </p>
+              ) : null}
+              <TenantSidebarRow
+                tenant={tenant}
+                active={tenant.id === selectedId}
+                showOwnerEmail={showOwnerEmail}
+                onSelect={() => onSelect(tenant.id)}
+              />
+            </li>
+          );
+        })}
+      </ul>
+    );
+  }
+
+  return (
+    <ul className="space-y-1">
+      {tenants.map((tenant) => (
+        <li key={tenant.id}>
+          <TenantSidebarRow
+            tenant={tenant}
+            active={tenant.id === selectedId}
+            showOwnerEmail={duplicateNameKeys.has(tenant.name.trim().toLowerCase())}
+            onSelect={() => onSelect(tenant.id)}
+          />
+        </li>
+      ))}
+    </ul>
+  );
+}
+
+function TenantSidebarRow({
+  tenant,
+  active,
+  showOwnerEmail,
+  onSelect,
+}: {
+  tenant: DashboardTenantSummary;
+  active: boolean;
+  showOwnerEmail: boolean;
+  onSelect: () => void;
+}) {
+  return (
+    <button
+      type="button"
+      onClick={onSelect}
+      className={`w-full rounded-xl px-3 py-2 text-left ${
+        active ? "bg-white/10" : "hover:bg-white/5"
+      }`}
+    >
+      <span className="flex items-center justify-between gap-2">
+        <span className="min-w-0 truncate font-medium">{tenant.name}</span>
+        <SessionStatusDot status={tenant.status} />
+      </span>
+      {showOwnerEmail && tenant.ownerEmail ? (
+        <span className="mt-0.5 block truncate text-xs text-stone-400">
+          {tenant.ownerEmail}
+        </span>
+      ) : null}
+      <span className="mt-1 block text-xs text-stone-300">
+        {flowLabel(tenant.flow)}
+        {tenant.linkedPhone ? ` · ${formatPhone(tenant.linkedPhone)}` : ""}
+      </span>
+    </button>
+  );
+}
+
+function NewTenantModal({
+  name,
+  flow,
+  ownerEmail,
+  ownerFirstName,
+  ownerLastName,
+  creating,
+  createError,
+  createNotice,
+  onClose,
+  onNameChange,
+  onFlowChange,
+  onOwnerEmailChange,
+  onOwnerFirstNameChange,
+  onOwnerLastNameChange,
+  onSubmit,
+}: {
+  name: string;
+  flow: TenantFlow;
+  ownerEmail: string;
+  ownerFirstName: string;
+  ownerLastName: string;
+  creating: boolean;
+  createError: string | null;
+  createNotice: string | null;
+  onClose: () => void;
+  onNameChange: (value: string) => void;
+  onFlowChange: (value: TenantFlow) => void;
+  onOwnerEmailChange: (value: string) => void;
+  onOwnerFirstNameChange: (value: string) => void;
+  onOwnerLastNameChange: (value: string) => void;
+  onSubmit: (event: FormEvent<HTMLFormElement>) => void;
+}) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !creating) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [creating, onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !creating) {
+          onClose();
+        }
+      }}
+    >
+      <div className="absolute inset-0 bg-stone-900/50" aria-hidden />
+      <div
+        ref={dialogRef}
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="new-tenant-title"
+        className="relative w-full max-w-md rounded-2xl border border-line bg-card p-5 shadow-xl"
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 id="new-tenant-title" className="text-lg font-semibold">
+              New tenant
+            </h2>
+            <p className="mt-1 text-sm text-muted">
+              Creates the tenant and sends portal onboarding when email is configured.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={creating}
+            className="rounded-lg p-1 text-muted hover:bg-background disabled:opacity-60"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" aria-hidden />
+          </button>
+        </div>
+        <form onSubmit={onSubmit} className="space-y-3">
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Business name</span>
+            <input
+              value={name}
+              onChange={(event) => onNameChange(event.target.value)}
+              required
+              maxLength={255}
+              className="w-full rounded-xl border border-line bg-white px-3 py-2"
+            />
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Flow</span>
+            <select
+              value={flow}
+              onChange={(event) => onFlowChange(event.target.value as TenantFlow)}
+              className="w-full rounded-xl border border-line bg-white px-3 py-2"
+            >
+              {TENANT_FLOW_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">Owner email</span>
+            <input
+              type="email"
+              value={ownerEmail}
+              onChange={(event) => onOwnerEmailChange(event.target.value)}
+              required
+              className="w-full rounded-xl border border-line bg-white px-3 py-2"
+            />
+          </label>
+          <div className="grid grid-cols-2 gap-2">
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">First name</span>
+              <input
+                value={ownerFirstName}
+                onChange={(event) => onOwnerFirstNameChange(event.target.value)}
+                required
+                className="w-full rounded-xl border border-line bg-white px-3 py-2"
+              />
+            </label>
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">Last name</span>
+              <input
+                value={ownerLastName}
+                onChange={(event) => onOwnerLastNameChange(event.target.value)}
+                required
+                className="w-full rounded-xl border border-line bg-white px-3 py-2"
+              />
+            </label>
+          </div>
+          {createError ? (
+            <p className="rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+              {createError}
+            </p>
+          ) : null}
+          {createNotice ? (
+            <p className="rounded-xl border border-emerald-200 bg-emerald-50 px-3 py-2 text-sm text-emerald-900">
+              {createNotice}
+            </p>
+          ) : null}
+          <div className="flex flex-wrap justify-end gap-2 pt-1">
+            <button
+              type="button"
+              onClick={onClose}
+              disabled={creating}
+              className="rounded-full border border-line bg-card px-4 py-2 text-sm font-medium disabled:opacity-60"
+            >
+              {createNotice ? "Done" : "Cancel"}
+            </button>
+            {!createNotice ? (
+              <button
+                type="submit"
+                disabled={creating}
+                className="rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-ink disabled:opacity-60"
+              >
+                {creating ? "Creating…" : "Create tenant"}
+              </button>
+            ) : null}
+          </div>
+        </form>
+      </div>
     </div>
   );
 }
