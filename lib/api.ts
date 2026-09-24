@@ -165,6 +165,20 @@ export function createDashboardApi(credentials: Credentials) {
         credentials,
       ),
 
+    pairTenant: (tenantId: string) =>
+      request<DashboardTenantWhatsapp>(
+        `/dashboard/tenants/${encodeURIComponent(tenantId)}/whatsapp/pair`,
+        credentials,
+        { method: "POST", body: "{}" },
+      ),
+
+    stopTenantPair: (tenantId: string) =>
+      request<DashboardTenantWhatsapp>(
+        `/dashboard/tenants/${encodeURIComponent(tenantId)}/whatsapp/pair/stop`,
+        credentials,
+        { method: "POST", body: "{}" },
+      ),
+
     today: (tenantId: string) =>
       request<DashboardToday>(
         `/dashboard/today?${tenantQuery(tenantId)}`,
@@ -204,6 +218,20 @@ export function fetchConnectLink(token: string): Promise<ConnectLink> {
   return publicRequest<ConnectLink>(`/connect/${encodeURIComponent(token)}`);
 }
 
+export function pairConnectLink(token: string): Promise<ConnectLink> {
+  return publicRequest<ConnectLink>(
+    `/connect/${encodeURIComponent(token)}/pair`,
+    { method: "POST", body: "{}" },
+  );
+}
+
+export function stopConnectPair(token: string): Promise<ConnectLink> {
+  return publicRequest<ConnectLink>(
+    `/connect/${encodeURIComponent(token)}/pair/stop`,
+    { method: "POST", body: "{}" },
+  );
+}
+
 export function createConnectApi(token: string): TenantReadApi {
   const root = `/connect/${encodeURIComponent(token)}`;
   return {
@@ -222,11 +250,18 @@ export function createConnectApi(token: string): TenantReadApi {
   };
 }
 
-async function publicRequest<T>(path: string): Promise<T> {
+async function publicRequest<T>(path: string, init?: RequestInit): Promise<T> {
+  const headers = new Headers(init?.headers);
+  headers.set("Accept", "application/json");
+  if (init?.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
   let response: Response;
   try {
     response = await fetch(`/backend${path}`, {
-      headers: { Accept: "application/json" },
+      ...init,
+      headers,
       cache: "no-store",
     });
   } catch {

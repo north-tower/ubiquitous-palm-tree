@@ -29,7 +29,13 @@ function isConnectPath(path: string[]): boolean {
   if (path.length === 2) {
     return true;
   }
-  if (path.length === 3 && CONNECT_READS.has(path[2])) {
+  if (
+    path.length === 3 &&
+    (CONNECT_READS.has(path[2]) || path[2] === "pair")
+  ) {
+    return true;
+  }
+  if (path.length === 4 && path[2] === "pair" && path[3] === "stop") {
     return true;
   }
   return path.length === 4 && path[2] === "conversations" && path[3].length > 0;

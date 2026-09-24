@@ -183,6 +183,7 @@ function Desk({
   const [flow, setFlow] = useState<TenantFlow>("techfind_demo");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [pairing, setPairing] = useState(false);
   const listRequest = useRef(0);
 
   const logout = onLogout;
@@ -268,8 +269,7 @@ function Desk({
             return;
           }
           setLink({ tenantId, data: next });
-          const waiting =
-            next.status === "waiting_for_scan" || next.status === null;
+          const waiting = next.status === "waiting_for_scan" || pairing;
           timer = window.setTimeout(pull, waiting ? 3000 : 15000);
         },
         (caught: unknown) => {
@@ -290,7 +290,7 @@ function Desk({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [api, selectedId, logout]);
+  }, [api, selectedId, logout, pairing]);
 
   const selected = tenants.find((tenant) => tenant.id === selectedId) ?? null;
   const visibleLink = link?.tenantId === selectedId ? link.data : null;
@@ -399,7 +399,7 @@ function Desk({
             disabled={creating}
             className="w-full rounded-full bg-emerald-400 px-3 py-2 text-sm font-semibold text-emerald-950 disabled:opacity-60"
           >
-            {creating ? "Creating…" : "Create and link"}
+            {creating ? "Creating…" : "Create tenant"}
           </button>
         </form>
       </aside>
@@ -409,8 +409,8 @@ function Desk({
           <div className="mx-auto mt-16 max-w-lg text-center">
             <h1 className="text-2xl font-semibold">Create a tenant to begin</h1>
             <p className="mt-2 text-muted">
-              A new tenant starts a WhatsApp session. The QR shows up on the
-              WhatsApp tab once the API has one.
+              Create a tenant, then open WhatsApp and generate a QR code when
+              you are ready to link a phone.
             </p>
           </div>
         ) : (
@@ -463,8 +463,12 @@ function Desk({
             ) : null}
             {tab === "whatsapp" ? (
               <WhatsappPanel
+                key={selected.id}
                 link={visibleLink}
                 connectToken={selected.connectToken}
+                onPair={() => api.pairTenant(selected.id)}
+                onStopPair={() => api.stopTenantPair(selected.id)}
+                onActiveChange={setPairing}
               />
             ) : null}
           </>
