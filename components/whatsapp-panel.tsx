@@ -1,84 +1,98 @@
 "use client";
 
-import type { DashboardTenantWhatsapp } from "@/lib/types";
-import { useState } from "react";
+import { flowLabel, formatPhone } from "@/lib/format";
+import type { DashboardTenantWhatsapp, TenantFlow } from "@/lib/types";
+import { Lock } from "lucide-react";
 import { QrConnect } from "./qr-connect";
+import { statusLabel } from "./status-pill";
 
 export function WhatsappPanel({
   link,
   connectToken,
+  flow,
   onPair,
   onStopPair,
   onActiveChange,
 }: {
   link: DashboardTenantWhatsapp | null;
   connectToken: string | null;
+  flow: TenantFlow;
   onPair: () => Promise<unknown>;
   onStopPair: () => Promise<unknown>;
   onActiveChange: (active: boolean) => void;
 }) {
   return (
-    <section className="max-w-xl rounded-2xl border border-line bg-card p-5">
-      <CopyConnectLink token={connectToken} />
-      {!link ? (
-        <p className="text-sm text-muted">Checking the WhatsApp link…</p>
-      ) : (
-        <QrConnect
-          link={link}
-          onPair={onPair}
-          onStopPair={onStopPair}
-          onActiveChange={onActiveChange}
-          connectedNote="Messages to this number are handled by the tenant's flow."
-        />
-      )}
-    </section>
-  );
-}
+    <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
+      <div className="min-w-0 flex-1">
+        {!link ? (
+          <section className="rounded-2xl border border-line bg-card p-6">
+            <p className="text-sm text-muted">Checking the WhatsApp link…</p>
+          </section>
+        ) : (
+          <QrConnect
+            link={link}
+            layout="desk"
+            connectToken={connectToken}
+            onPair={onPair}
+            onStopPair={onStopPair}
+            onActiveChange={onActiveChange}
+            connectedNote=""
+          />
+        )}
+      </div>
 
-function CopyConnectLink({ token }: { token: string | null }) {
-  const [copied, setCopied] = useState(false);
-  const [manualUrl, setManualUrl] = useState<string | null>(null);
-
-  if (!token) {
-    return null;
-  }
-
-  async function onCopy() {
-    const url = `${window.location.origin}/connect/${token}`;
-    try {
-      await navigator.clipboard.writeText(url);
-      setManualUrl(null);
-      setCopied(true);
-    } catch {
-      setCopied(false);
-      setManualUrl(url);
-    }
-  }
-
-  return (
-    <div className="mb-5 border-b border-line pb-5">
-      <p className="text-sm text-muted">Tenant connect link</p>
-      <p className="mt-1 text-sm">
-        Send this to the business. They open it and generate a QR code when
-        they want to connect a WhatsApp account. That page does not use your
-        desk login.
-      </p>
-      <button
-        type="button"
-        onClick={() => void onCopy()}
-        className="mt-3 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-ink"
-      >
-        {copied ? "Copied" : "Copy connect link"}
-      </button>
-      {manualUrl ? (
-        <input
-          readOnly
-          value={manualUrl}
-          onFocus={(event) => event.currentTarget.select()}
-          className="mt-3 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
-        />
+      {link ? (
+        <aside className="w-full shrink-0 space-y-4 xl:w-72">
+          <DetailsCard link={link} flow={flow} />
+          <ConnectLinkSecurityNotice />
+        </aside>
       ) : null}
     </div>
   );
 }
 
+function DetailsCard({
+  link,
+  flow,
+}: {
+  link: DashboardTenantWhatsapp;
+  flow: TenantFlow;
+}) {
+  const phone = link.linkedPhone ? formatPhone(link.linkedPhone) : null;
+  const linkedLabel =
+    link.status === "connected" ? "Linked number" : "Last linked number";
+
+  return (
+    <section className="rounded-2xl border border-line bg-card p-5">
+      <h2 className="text-sm font-semibold">Details</h2>
+      <dl className="mt-4 space-y-3 text-sm">
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-muted">Status</dt>
+          <dd className="font-medium text-right">{statusLabel(link.status)}</dd>
+        </div>
+        {phone ? (
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted">{linkedLabel}</dt>
+            <dd className="font-medium text-right">{phone}</dd>
+          </div>
+        ) : null}
+        <div className="flex items-baseline justify-between gap-3">
+          <dt className="text-muted">Flow</dt>
+          <dd className="font-medium text-right">{flowLabel(flow)}</dd>
+        </div>
+      </dl>
+    </section>
+  );
+}
+
+function ConnectLinkSecurityNotice() {
+  return (
+    <div className="flex gap-3 rounded-2xl border border-amber-200/80 bg-amber-50/90 p-4">
+      <Lock className="mt-0.5 h-4 w-4 shrink-0 text-amber-800" aria-hidden />
+      <p className="text-sm leading-relaxed text-amber-950/90">
+        Anyone with the connect link can see this business&apos;s numbers and
+        conversations. Only send it to the owner.
+      </p>
+    </div>
+  );
+}

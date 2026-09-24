@@ -623,7 +623,15 @@ function Desk({
                 [
                   ["overview", "Overview", null],
                   ["conversations", "Conversations", conversationTotal],
-                  ["whatsapp", "WhatsApp", liveStatus !== "connected" ? "dot" : null],
+                  [
+                    "whatsapp",
+                    "WhatsApp",
+                    liveStatus === "connected"
+                      ? "ok-dot"
+                      : liveStatus
+                        ? "dot"
+                        : null,
+                  ],
                 ] as const
               ).map(([id, label, badge]) => (
                 <button
@@ -638,8 +646,18 @@ function Desk({
                   }`}
                 >
                   {label}
+                  {badge === "ok-dot" ? (
+                    <span className="h-2 w-2 rounded-full bg-emerald-400" aria-hidden />
+                  ) : null}
                   {badge === "dot" ? (
-                    <span className="h-2 w-2 rounded-full bg-rose-500" aria-hidden />
+                    <span
+                      className={`h-2 w-2 rounded-full ${
+                        liveStatus === "waiting_for_scan"
+                          ? "bg-amber-400"
+                          : "bg-rose-500"
+                      }`}
+                      aria-hidden
+                    />
                   ) : null}
                   {typeof badge === "number" && badge > 0 ? (
                     <span className="rounded-full bg-foreground px-1.5 py-0.5 text-[0.65rem] font-semibold text-background">
@@ -676,6 +694,7 @@ function Desk({
                 key={selected.id}
                 link={visibleLink}
                 connectToken={selected.connectToken}
+                flow={selected.flow}
                 onPair={() => api.pairTenant(selected.id)}
                 onStopPair={() => api.stopTenantPair(selected.id)}
                 onActiveChange={setPairing}
