@@ -582,13 +582,15 @@ function ConversationThread({
   const [handoffSince, setHandoffSince] = useState<string | null>(null);
 
   useEffect(() => {
-    if (inHandoff && !handoffSince) {
-      const lastOutbound = [...detail.messages].reverse().find((m) => m.direction === "out");
-      setHandoffSince(lastOutbound?.createdAt ?? new Date().toISOString());
-    }
     if (!inHandoff) {
       setHandoffSince(null);
+      return;
     }
+    if (handoffSince) {
+      return;
+    }
+    const lastInbound = [...detail.messages].reverse().find((m) => m.direction === "in");
+    setHandoffSince(lastInbound?.createdAt ?? "");
   }, [detail.id, detail.messages, inHandoff, handoffSince]);
 
   const resolveRole = useCallback(
@@ -596,7 +598,11 @@ function ConversationThread({
       if (message.direction === "in") {
         return "customer";
       }
-      if (inHandoff && handoffSince && message.createdAt >= handoffSince) {
+      if (
+        inHandoff &&
+        handoffSince &&
+        message.createdAt > handoffSince
+      ) {
         return "staff";
       }
       return "bot";

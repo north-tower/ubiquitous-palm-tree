@@ -27,7 +27,6 @@ import { ConversationsPanel } from "./conversations-panel";
 import { OverviewPanel } from "./overview-panel";
 import {
   compareTenantsByDeskStatus,
-  deskCategoryLabel,
   SessionStatusDot,
   statusLabel,
   StatusPill,
@@ -280,6 +279,10 @@ function Desk({
       cancelled = true;
     };
   }, [api, logout]);
+
+  useEffect(() => {
+    setConversationTotal(null);
+  }, [selectedId]);
 
   useEffect(() => {
     if (!selectedId) {
@@ -615,26 +618,34 @@ function Desk({
                 {createError}
               </p>
             ) : null}
-            <div className="mb-5 flex gap-2">
+            <div className="mb-5 flex gap-6 border-b border-line">
               {(
                 [
-                  ["overview", "Overview"],
-                  ["conversations", "Conversations"],
-                  ["whatsapp", "WhatsApp"],
+                  ["overview", "Overview", null],
+                  ["conversations", "Conversations", conversationTotal],
+                  ["whatsapp", "WhatsApp", liveStatus !== "connected" ? "dot" : null],
                 ] as const
-              ).map(([id, label]) => (
+              ).map(([id, label, badge]) => (
                 <button
                   key={id}
                   type="button"
                   onClick={() => setTab(id)}
                   aria-pressed={tab === id}
-                  className={`rounded-full px-4 py-1.5 text-sm font-medium ${
+                  className={`relative -mb-px inline-flex items-center gap-2 border-b-2 pb-2 text-sm font-medium transition-colors ${
                     tab === id
-                      ? "bg-accent text-accent-ink"
-                      : "border border-line bg-card text-foreground"
+                      ? "border-accent text-foreground"
+                      : "border-transparent text-muted hover:text-foreground"
                   }`}
                 >
                   {label}
+                  {badge === "dot" ? (
+                    <span className="h-2 w-2 rounded-full bg-rose-500" aria-hidden />
+                  ) : null}
+                  {typeof badge === "number" && badge > 0 ? (
+                    <span className="rounded-full bg-foreground px-1.5 py-0.5 text-[0.65rem] font-semibold text-background">
+                      {badge}
+                    </span>
+                  ) : null}
                 </button>
               ))}
             </div>
@@ -657,6 +668,7 @@ function Desk({
                 api={api}
                 tenantId={selected.id}
                 onUnauthorized={logout}
+                onTotalChange={setConversationTotal}
               />
             ) : null}
             {tab === "whatsapp" ? (
@@ -676,6 +688,16 @@ function Desk({
   );
 }
 
+function sidebarGroupHeading(category: TenantDeskCategory, count: number): string {
+  const label =
+    category === "connected"
+      ? "Live"
+      : category === "needs_attention"
+        ? "Needs attention"
+        : "Not set up";
+  return `${label} · ${count}`;
+}
+
 function TenantSidebarList({
   tenants,
   selectedId,
@@ -690,38 +712,46 @@ function TenantSidebarList({
   onSelect: (id: string) => void;
 }) {
   if (tenantSort === "status") {
-    let lastCategory: ReturnType<typeof tenantDeskCategory> | null = null;
+    const groups: { category: TenantDeskCategory; tenants: DashboardTenantSummary[] }[] =
+      [];
+    for (const tenant of tenants) {
+      const category = tenantDeskCategory(tenant.status, tenant.ownerStatus);
+      const last = groups[groups.length - 1];
+      if (!last || last.category !== category) {
+        groups.push({ category, tenants: [tenant] });
+      } else {
+        last.tenants.push(tenant);
+      }
+    }
     return (
-      <ul className="space-y-1">
-        {tenants.map((tenant) => {
-          const category = tenantDeskCategory(tenant.status, tenant.ownerStatus);
-          const showHeading = category !== lastCategory;
-          lastCategory = category;
-          const showOwnerEmail = duplicateNameKeys.has(
-            tenant.name.trim().toLowerCase(),
-          );
-          return (
-            <li key={tenant.id}>
-              {showHeading ? (
-                <p className="mt-2 mb-1 px-1 text-[0.65rem] font-semibold tracking-wide text-stone-500 uppercase first:mt-0">
-                  {deskCategoryLabel(category)}
-                </p>
-              ) : null}
-              <TenantSidebarRow
-                tenant={tenant}
-                active={tenant.id === selectedId}
-                showOwnerEmail={showOwnerEmail}
-                onSelect={() => onSelect(tenant.id)}
-              />
-            </li>
-          );
-        })}
-      </ul>
+      <div className="space-y-3">
+        {groups.map((group) => (
+          <section key={group.category}>
+            <p className="mb-1.5 px-1 text-[0.65rem] font-semibold tracking-[0.12em] text-stone-500 uppercase">
+              {sidebarGroupHeading(group.category, group.tenants.length)}
+            </p>
+            <ul className="space-y-0.5">
+              {group.tenants.map((tenant) => (
+                <li key={tenant.id}>
+                  <TenantSidebarRow
+                    tenant={tenant}
+                    active={tenant.id === selectedId}
+                    showOwnerEmail={duplicateNameKeys.has(
+                      tenant.name.trim().toLowerCase(),
+                    )}
+                    onSelect={() => onSelect(tenant.id)}
+                  />
+                </li>
+              ))}
+            </ul>
+          </section>
+        ))}
+      </div>
     );
   }
 
   return (
-    <ul className="space-y-1">
+    <ul className="space-y-0.5">
       {tenants.map((tenant) => (
         <li key={tenant.id}>
           <TenantSidebarRow
@@ -751,22 +781,23 @@ function TenantSidebarRow({
     <button
       type="button"
       onClick={onSelect}
-      className={`w-full rounded-xl px-3 py-2 text-left ${
+      className={`w-full rounded-lg px-2.5 py-2 text-left ${
         active ? "bg-white/10" : "hover:bg-white/5"
       }`}
     >
-      <span className="flex items-center justify-between gap-2">
-        <span className="min-w-0 truncate font-medium">{tenant.name}</span>
-        <SessionStatusDot status={tenant.status} />
+      <span className="block truncate text-sm font-semibold text-white">{tenant.name}</span>
+      <span className="mt-0.5 block truncate text-xs text-stone-400">
+        {flowLabel(tenant.flow)}
+        {tenant.linkedPhone ? ` · ${formatPhone(tenant.linkedPhone)}` : ""}
       </span>
       {showOwnerEmail && tenant.ownerEmail ? (
-        <span className="mt-0.5 block truncate text-xs text-stone-400">
+        <span className="mt-0.5 block truncate text-xs text-stone-500">
           {tenant.ownerEmail}
         </span>
       ) : null}
-      <span className="mt-1 block text-xs text-stone-300">
-        {flowLabel(tenant.flow)}
-        {tenant.linkedPhone ? ` · ${formatPhone(tenant.linkedPhone)}` : ""}
+      <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-stone-300">
+        <SessionStatusDot status={tenant.status} />
+        {statusLabel(tenant.status)}
       </span>
     </button>
   );
