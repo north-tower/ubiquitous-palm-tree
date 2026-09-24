@@ -281,24 +281,90 @@ export function ConversationsPanel({
         ) : !detail ? (
           <p className="text-sm text-muted">Loading conversation…</p>
         ) : (
-          <ConversationBody detail={detail} />
+          <ConversationBody
+            detail={detail}
+            onHandoff={async () => {
+              const next = await api.handoffConversation(tenantId, detail.id);
+              setDetailState({ id: detail.id, detail: next });
+            }}
+            onResumeAutomation={async () => {
+              const next = await api.resumeAutomation(tenantId, detail.id);
+              setDetailState({ id: detail.id, detail: next });
+            }}
+            onUnauthorized={onUnauthorized}
+          />
         )}
       </section>
     </div>
   );
 }
 
-function ConversationBody({ detail }: { detail: ConversationDetail }) {
+function ConversationBody({
+  detail,
+  onHandoff,
+  onResumeAutomation,
+  onUnauthorized,
+}: {
+  detail: ConversationDetail;
+  onHandoff: () => Promise<void>;
+  onResumeAutomation: () => Promise<void>;
+  onUnauthorized: () => void;
+}) {
   const lead = detail.lead;
+  const inHandoff = detail.currentState === "HUMAN_HANDOFF";
+  const [busy, setBusy] = useState(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+
+  async function run(action: () => Promise<void>) {
+    setBusy(true);
+    setActionError(null);
+    try {
+      await action();
+    } catch (caught: unknown) {
+      if (isUnauthorized(caught)) {
+        onUnauthorized();
+        return;
+      }
+      setActionError(messageFromError(caught));
+    } finally {
+      setBusy(false);
+    }
+  }
+
   return (
     <div className="space-y-4">
       <div>
         <h2 className="text-lg font-semibold">{formatPhone(detail.customerPhone)}</h2>
         <p className="text-sm text-muted">
           {labelize(detail.currentState)}
+          {inHandoff ? " · Bot paused" : ""}
           {detail.demoMode ? ` · ${labelize(detail.demoMode)}` : ""}
           {detail.nextAction ? ` · ${detail.nextAction}` : ""}
         </p>
+        <div className="mt-3 flex flex-wrap gap-2">
+          {inHandoff ? (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run(onResumeAutomation)}
+              className="rounded-full border border-line px-3 py-1.5 text-sm font-medium disabled:opacity-50"
+            >
+              Resume bot
+            </button>
+          ) : (
+            <button
+              type="button"
+              disabled={busy}
+              onClick={() => run(onHandoff)}
+              className="rounded-full bg-stone-800 px-3 py-1.5 text-sm font-medium text-white disabled:opacity-50"
+            >
+              Take over chat
+            </button>
+          )}
+        </div>
+        {actionError ? (
+          <p className="mt-2 text-sm text-rose-800">{actionError}</p>
+        ) : null}
       </div>
 
       {lead ? (

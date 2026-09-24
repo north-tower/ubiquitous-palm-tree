@@ -116,6 +116,14 @@ export type TenantReadApi = {
     query: ConversationQuery,
   ) => Promise<ConversationListResult>;
   conversation: (tenantId: string, id: string) => Promise<ConversationDetail>;
+  handoffConversation: (
+    tenantId: string,
+    id: string,
+  ) => Promise<ConversationDetail>;
+  resumeAutomation: (
+    tenantId: string,
+    id: string,
+  ) => Promise<ConversationDetail>;
 };
 
 function conversationQueryParams(
@@ -208,6 +216,20 @@ export function createDashboardApi(credentials: Credentials) {
         `/dashboard/conversations/${encodeURIComponent(id)}?${tenantQuery(tenantId)}`,
         credentials,
       ),
+
+    handoffConversation: (tenantId: string, id: string) =>
+      request<ConversationDetail>(
+        `/dashboard/conversations/${encodeURIComponent(id)}/handoff?${tenantQuery(tenantId)}`,
+        credentials,
+        { method: "POST", body: "{}" },
+      ),
+
+    resumeAutomation: (tenantId: string, id: string) =>
+      request<ConversationDetail>(
+        `/dashboard/conversations/${encodeURIComponent(id)}/resume-automation?${tenantQuery(tenantId)}`,
+        credentials,
+        { method: "POST", body: "{}" },
+      ),
   };
 }
 
@@ -247,6 +269,12 @@ export function createConnectApi(token: string): TenantReadApi {
       publicRequest<ConversationDetail>(
         `${root}/conversations/${encodeURIComponent(id)}`,
       ),
+    handoffConversation: async () => {
+      throw new ApiError("Handoff is only available on the staff desk.", 403);
+    },
+    resumeAutomation: async () => {
+      throw new ApiError("Resume is only available on the staff desk.", 403);
+    },
   };
 }
 

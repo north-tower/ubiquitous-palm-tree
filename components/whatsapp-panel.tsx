@@ -59,8 +59,8 @@ function CopyConnectLink({ token }: { token: string | null }) {
     <div className="mb-5 border-b border-line pb-5">
       <p className="text-sm text-muted">Tenant connect link</p>
       <p className="mt-1 text-sm">
-        Send this to the business. They open it and scan the QR with the
-        WhatsApp account they want to connect. That page does not use your
+        Send this to the business. They open it and generate a QR code when
+        they want to connect a WhatsApp account. That page does not use your
         desk login.
       </p>
       <button
