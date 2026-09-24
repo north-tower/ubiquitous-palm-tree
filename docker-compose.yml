@@ -2,7 +2,7 @@
 #
 #   docker compose up --build -d
 #
-# UI (localhost): http://127.0.0.1:3001  →  configure host nginx from deploy/nginx/host/
+# UI (localhost): http://127.0.0.1:3002  →  configure host nginx from deploy/nginx/host/
 
 name: techfind-ui
 
@@ -11,10 +11,10 @@ services:
     build: .
     restart: unless-stopped
     ports:
-      - '127.0.0.1:${UI_PORT:-3001}:3001'
+      - '127.0.0.1:${UI_PORT:-3002}:${UI_PORT:-3002}'
     environment:
       NODE_ENV: production
-      PORT: 3001
+      PORT: ${UI_PORT:-3002}
       HOSTNAME: 0.0.0.0
       API_URL: ${API_URL:-https://bot.techfindconsulting.africa}
     healthcheck:
@@ -23,7 +23,7 @@ services:
           'CMD',
           'node',
           '-e',
-          "fetch('http://127.0.0.1:3001/').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+          "fetch('http://127.0.0.1:'+(process.env.PORT||3002)+'/').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
         ]
       interval: 30s
       timeout: 5s

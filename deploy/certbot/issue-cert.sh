@@ -6,18 +6,18 @@ ROOT="$(CDPATH= cd -- "$(dirname "$0")/../.." && pwd)"
 cd "$ROOT"
 
 echo "Host nginx mode: Docker does not bind 80/443."
-echo "Starting UI on 127.0.0.1:${UI_PORT:-3001}..."
+echo "Starting UI on 127.0.0.1:${UI_PORT:-3002}..."
 docker compose up -d ui
 
 for _ in 1 2 3 4 5 6 7 8 9 10; do
-  if curl -fsS "http://127.0.0.1:${UI_PORT:-3001}/" >/dev/null; then
+  if curl -fsS "http://127.0.0.1:${UI_PORT:-3002}/" >/dev/null; then
     break
   fi
   sleep 2
 done
 
-if ! curl -fsS "http://127.0.0.1:${UI_PORT:-3001}/" >/dev/null; then
-  echo "UI is not responding on 127.0.0.1:${UI_PORT:-3001} — check docker compose logs ui." >&2
+if ! curl -fsS "http://127.0.0.1:${UI_PORT:-3002}/" >/dev/null; then
+  echo "UI is not responding on 127.0.0.1:${UI_PORT:-3002} — check docker compose logs ui." >&2
   exit 1
 fi
 

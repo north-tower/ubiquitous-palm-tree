@@ -2,7 +2,7 @@
 # Replace with whatsappdesk.conf.example (or let certbot --nginx merge SSL blocks).
 
 upstream whatsappdesk_ui {
-    server 127.0.0.1:3001;
+    server 127.0.0.1:3002;
     keepalive 16;
 }
 
