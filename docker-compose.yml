@@ -1,0 +1,33 @@
+# Next.js dashboard UI only. Run the Nest API separately (e.g. whatsapp3 docker compose).
+#
+#   docker compose up --build
+#
+# UI: http://127.0.0.1:3001  (override with UI_PORT in .env)
+
+name: techfind-ui
+
+services:
+  ui:
+    build: .
+    restart: unless-stopped
+    ports:
+      - '127.0.0.1:${UI_PORT:-3001}:3001'
+    environment:
+      NODE_ENV: production
+      PORT: 3001
+      HOSTNAME: 0.0.0.0
+      API_URL: ${API_URL:-http://host.docker.internal:5600}
+    extra_hosts:
+      - 'host.docker.internal:host-gateway'
+    healthcheck:
+      test:
+        [
+          'CMD',
+          'node',
+          '-e',
+          "fetch('http://127.0.0.1:3001/').then((r)=>process.exit(r.ok?0:1)).catch(()=>process.exit(1))",
+        ]
+      interval: 30s
+      timeout: 5s
+      retries: 3
+      start_period: 30s
