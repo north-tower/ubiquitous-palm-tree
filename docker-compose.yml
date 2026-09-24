@@ -1,8 +1,11 @@
-# Next.js dashboard UI only. Run the Nest API separately (e.g. whatsapp3 docker compose).
+# Next.js UI + nginx for whatsappdesk.techfindconsulting.africa
 #
-#   docker compose up --build
+#   docker compose up --build -d
 #
-# UI: http://127.0.0.1:3001  (override with UI_PORT in .env)
+# Public: http(s)://whatsappdesk.techfindconsulting.africa (ports 80/443 on the host)
+# API proxy (server-side): set API_URL in .env (default: bot.techfindconsulting.africa)
+#
+# TLS: start on HTTP, then run deploy/certbot/issue-cert.sh and enable whatsappdesk.ssl.conf
 
 name: techfind-ui
 
@@ -10,15 +13,11 @@ services:
   ui:
     build: .
     restart: unless-stopped
-    ports:
-      - '127.0.0.1:${UI_PORT:-3001}:3001'
     environment:
       NODE_ENV: production
       PORT: 3001
       HOSTNAME: 0.0.0.0
-      API_URL: ${API_URL:-http://host.docker.internal:5600}
-    extra_hosts:
-      - 'host.docker.internal:host-gateway'
+      API_URL: ${API_URL:-https://bot.techfindconsulting.africa}
     healthcheck:
       test:
         [
@@ -31,3 +30,24 @@ services:
       timeout: 5s
       retries: 3
       start_period: 30s
+
+  nginx:
+    image: nginx:1.27-alpine
+    restart: unless-stopped
+    ports:
+      - '80:80'
+      - '443:443'
+    volumes:
+      - ./deploy/nginx/conf.d:/etc/nginx/conf.d:ro
+      - ./deploy/certbot/conf:/etc/letsencrypt:ro
+      - ./deploy/certbot/www:/var/www/certbot:ro
+    depends_on:
+      ui:
+        condition: service_healthy
+
+  certbot:
+    profiles: ['certbot']
+    image: certbot/certbot:latest
+    volumes:
+      - ./deploy/certbot/conf:/etc/letsencrypt
+      - ./deploy/certbot/www:/var/www/certbot
