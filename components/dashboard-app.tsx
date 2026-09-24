@@ -180,9 +180,14 @@ function Desk({
   const [tab, setTab] = useState<Tab>("overview");
   const [listError, setListError] = useState<string | null>(null);
   const [name, setName] = useState("");
+  const [ownerEmail, setOwnerEmail] = useState("");
+  const [ownerFirstName, setOwnerFirstName] = useState("");
+  const [ownerLastName, setOwnerLastName] = useState("");
   const [flow, setFlow] = useState<TenantFlow>("techfind_demo");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
+  const [createNotice, setCreateNotice] = useState<string | null>(null);
+  const [resending, setResending] = useState(false);
   const [pairing, setPairing] = useState(false);
   const listRequest = useRef(0);
 
@@ -301,12 +306,37 @@ function Desk({
     event.preventDefault();
     setCreating(true);
     setCreateError(null);
+    setCreateNotice(null);
     try {
-      const created = await api.createTenant({ name: name.trim(), flow });
+      const created = await api.createTenant({
+        name: name.trim(),
+        flow,
+        email: ownerEmail.trim(),
+        firstName: ownerFirstName.trim(),
+        lastName: ownerLastName.trim(),
+        appUrl: typeof window !== "undefined" ? window.location.origin : undefined,
+      });
       const refreshed = await refreshTenants(created.id);
       if (refreshed) {
         setTab("whatsapp");
         setName("");
+        setOwnerEmail("");
+        setOwnerFirstName("");
+        setOwnerLastName("");
+        if (created.onboarding) {
+          const { emailResult, acceptUrl } = created.onboarding;
+          if (emailResult.status === "sent") {
+            setCreateNotice("Onboarding email sent to the owner.");
+          } else if (emailResult.status === "unavailable") {
+            setCreateNotice(
+              `Email is not configured. Share this setup link: ${acceptUrl}`,
+            );
+          } else {
+            setCreateNotice(
+              `Email failed (${emailResult.error}). Share this setup link: ${acceptUrl}`,
+            );
+          }
+        }
       }
     } catch (caught) {
       if (isUnauthorized(caught)) {
@@ -316,6 +346,39 @@ function Desk({
       setCreateError(messageFromError(caught));
     } finally {
       setCreating(false);
+    }
+  }
+
+  async function onResendOnboarding() {
+    if (!selected) {
+      return;
+    }
+    setResending(true);
+    setCreateNotice(null);
+    setCreateError(null);
+    try {
+      const result = await api.resendOnboarding(
+        selected.id,
+        typeof window !== "undefined" ? window.location.origin : undefined,
+      );
+      if (result.emailResult.status === "sent") {
+        setCreateNotice("Onboarding email resent.");
+      } else if (result.emailResult.status === "unavailable") {
+        setCreateNotice(`Email is not configured. Setup link: ${result.acceptUrl}`);
+      } else {
+        setCreateNotice(
+          `Email failed (${result.emailResult.error}). Setup link: ${result.acceptUrl}`,
+        );
+      }
+      await refreshTenants(selected.id);
+    } catch (caught) {
+      if (isUnauthorized(caught)) {
+        logout();
+        return;
+      }
+      setCreateError(messageFromError(caught));
+    } finally {
+      setResending(false);
     }
   }
 
@@ -393,7 +456,32 @@ function Desk({
               </option>
             ))}
           </select>
+          <input
+            type="email"
+            value={ownerEmail}
+            onChange={(event) => setOwnerEmail(event.target.value)}
+            placeholder="Owner email"
+            required
+            className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm outline-none placeholder:text-white/40 focus:border-emerald-300"
+          />
+          <div className="grid grid-cols-2 gap-2">
+            <input
+              value={ownerFirstName}
+              onChange={(event) => setOwnerFirstName(event.target.value)}
+              placeholder="First name"
+              required
+              className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm outline-none placeholder:text-white/40 focus:border-emerald-300"
+            />
+            <input
+              value={ownerLastName}
+              onChange={(event) => setOwnerLastName(event.target.value)}
+              placeholder="Last name"
+              required
+              className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-2 text-sm outline-none placeholder:text-white/40 focus:border-emerald-300"
+            />
+          </div>
           {createError ? <p className="text-sm text-rose-200">{createError}</p> : null}
+          {createNotice ? <p className="text-sm text-emerald-100">{createNotice}</p> : null}
           <button
             type="submit"
             disabled={creating}
@@ -419,8 +507,27 @@ function Desk({
               <div>
                 <p className="text-sm text-muted">{flowLabel(selected.flow)}</p>
                 <h1 className="text-2xl font-semibold tracking-tight">{selected.name}</h1>
+                {selected.ownerEmail ? (
+                  <p className="mt-1 text-sm text-muted">
+                    Portal: {selected.ownerEmail}
+                    {selected.ownerStatus === "invited" ? " · invite pending" : ""}
+                    {selected.ownerStatus === "active" ? " · active" : ""}
+                  </p>
+                ) : null}
               </div>
-              <StatusDot status={liveStatus} />
+              <div className="flex flex-wrap items-center gap-3">
+                {selected.ownerStatus === "invited" ? (
+                  <button
+                    type="button"
+                    disabled={resending}
+                    onClick={() => void onResendOnboarding()}
+                    className="rounded-full border border-line bg-card px-3 py-1 text-sm disabled:opacity-60"
+                  >
+                    {resending ? "Sending…" : "Resend onboarding email"}
+                  </button>
+                ) : null}
+                <StatusDot status={liveStatus} />
+              </div>
             </header>
             <div className="mb-5 flex gap-2">
               {(

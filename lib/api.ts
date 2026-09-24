@@ -6,12 +6,15 @@ import type {
   ConnectLink,
   ConversationDetail,
   ConversationListResult,
+  CreateTenantResult,
   DashboardFunnel,
   DashboardTenantSummary,
   DashboardTenantWhatsapp,
   DashboardToday,
   DemoAnalyticsRow,
   LeadScore,
+  PortalSession,
+  PortalUser,
   TenantFlow,
 } from "./types";
 
@@ -161,11 +164,28 @@ export function createDashboardApi(credentials: Credentials) {
     listTenants: () =>
       request<DashboardTenantSummary[]>("/dashboard/tenants", credentials),
 
-    createTenant: (body: { name: string; flow: TenantFlow }) =>
-      request<{ id: string }>("/dashboard/tenants", credentials, {
+    createTenant: (body: {
+      name: string;
+      flow: TenantFlow;
+      email?: string;
+      firstName?: string;
+      lastName?: string;
+      appUrl?: string;
+    }) =>
+      request<CreateTenantResult>("/dashboard/tenants", credentials, {
         method: "POST",
         body: JSON.stringify(body),
       }),
+
+    resendOnboarding: (tenantId: string, appUrl?: string) =>
+      request<NonNullable<CreateTenantResult["onboarding"]>>(
+        `/dashboard/tenants/${encodeURIComponent(tenantId)}/resend-onboarding`,
+        credentials,
+        {
+          method: "POST",
+          body: JSON.stringify(appUrl ? { appUrl } : {}),
+        },
+      ),
 
     tenantWhatsapp: (tenantId: string) =>
       request<DashboardTenantWhatsapp>(
@@ -234,6 +254,131 @@ export function createDashboardApi(credentials: Credentials) {
 }
 
 export type DashboardApi = ReturnType<typeof createDashboardApi>;
+
+export function portalLogin(
+  email: string,
+  password: string,
+): Promise<PortalSession> {
+  return publicRequest<PortalSession>("/portal/login", {
+    method: "POST",
+    body: JSON.stringify({ email, password }),
+  });
+}
+
+export function portalAcceptInvite(
+  token: string,
+  password: string,
+): Promise<PortalSession> {
+  return publicRequest<PortalSession>(
+    `/portal/invitations/${encodeURIComponent(token)}/accept`,
+    {
+      method: "POST",
+      body: JSON.stringify({ password }),
+    },
+  );
+}
+
+export function fetchInvitePreview(token: string): Promise<{
+  valid: boolean;
+  firstName?: string;
+  tenantName?: string;
+}> {
+  return publicRequest(
+    `/portal/invitations/${encodeURIComponent(token)}`,
+  );
+}
+
+export function createPortalApi(sessionToken: string) {
+  const auth = `Bearer ${sessionToken}`;
+  const bearer = <T>(path: string, init?: RequestInit) =>
+    bearerRequest<T>(path, auth, init);
+
+  return {
+    me: () => bearer<PortalUser & { tenantName: string; flow: TenantFlow }>("/portal/me"),
+
+    logout: () =>
+      bearer<{ ok: true }>("/portal/logout", { method: "POST", body: "{}" }),
+
+    whatsapp: () => bearer<ConnectLink>("/portal/whatsapp"),
+
+    pairWhatsapp: () =>
+      bearer<ConnectLink>("/portal/whatsapp/pair", {
+        method: "POST",
+        body: "{}",
+      }),
+
+    stopPairWhatsapp: () =>
+      bearer<ConnectLink>("/portal/whatsapp/pair/stop", {
+        method: "POST",
+        body: "{}",
+      }),
+
+    today: () => bearer<DashboardToday>("/portal/today"),
+    funnel: () => bearer<DashboardFunnel>("/portal/funnel"),
+    demoAnalytics: () =>
+      bearer<DemoAnalyticsRow[]>("/portal/demo-analytics"),
+    conversations: (_tenantId: string, query: ConversationQuery) =>
+      bearer<ConversationListResult>(
+        `/portal/conversations?${conversationQueryParams(query).toString()}`,
+      ),
+    conversation: (_tenantId: string, id: string) =>
+      bearer<ConversationDetail>(
+        `/portal/conversations/${encodeURIComponent(id)}`,
+      ),
+    handoffConversation: async () => {
+      throw new ApiError("Handoff is only available on the staff desk.", 403);
+    },
+    resumeAutomation: async () => {
+      throw new ApiError("Resume is only available on the staff desk.", 403);
+    },
+  };
+}
+
+export type PortalApi = ReturnType<typeof createPortalApi>;
+
+async function bearerRequest<T>(
+  path: string,
+  authorization: string,
+  init?: RequestInit,
+): Promise<T> {
+  const headers = new Headers(init?.headers);
+  headers.set("Accept", "application/json");
+  headers.set("Authorization", authorization);
+  if (init?.body && !headers.has("Content-Type")) {
+    headers.set("Content-Type", "application/json");
+  }
+
+  let response: Response;
+  try {
+    response = await fetch(`/backend${path}`, {
+      ...init,
+      headers,
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError(
+      "Cannot reach this app's API proxy. Is the dev server running?",
+      0,
+    );
+  }
+
+  if (!response.ok) {
+    let message = response.statusText || "Request failed";
+    try {
+      const body = (await response.json()) as { message?: unknown };
+      if (typeof body.message === "string" && body.message) {
+        message = body.message;
+      } else if (Array.isArray(body.message)) {
+        message = body.message.map(String).join(", ");
+      }
+    } catch {
+      // Keep the status text when the body is not JSON.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  return (await response.json()) as T;
+}
 
 /** Public tenant page. Does not send the staff Basic auth header. */
 export function fetchConnectLink(token: string): Promise<ConnectLink> {

@@ -9,7 +9,7 @@ function isProxiedPath(path: string[]): boolean {
   if (path.length === 0) {
     return false;
   }
-  if (path[0] === "dashboard") {
+  if (path[0] === "dashboard" || path[0] === "portal") {
     return true;
   }
   return isConnectPath(path);

@@ -105,6 +105,8 @@ export type DemoAnalyticsRow = {
   meetings: number;
 };
 
+export type TenantOwnerStatus = "invited" | "active";
+
 export type DashboardTenantSummary = {
   id: string;
   name: string;
@@ -112,6 +114,39 @@ export type DashboardTenantSummary = {
   linkedPhone: string | null;
   status: BaileysSessionStatus | null;
   connectToken: string | null;
+  ownerEmail: string | null;
+  ownerStatus: TenantOwnerStatus | null;
+};
+
+export type EmailSendResult =
+  | { status: "sent"; providerId: string }
+  | { status: "failed"; error: string }
+  | { status: "unavailable"; reason: "EMAIL_NOT_CONFIGURED" };
+
+export type CreateTenantResult = {
+  id: string;
+  connectToken: string | null;
+  onboarding?: {
+    acceptUrl: string;
+    connectUrl: string;
+    loginUrl: string;
+    emailResult: EmailSendResult;
+  };
+};
+
+export type PortalUser = {
+  userId: string;
+  tenantId: string;
+  email: string;
+  firstName: string;
+  lastName: string;
+  tenantName?: string;
+  flow?: TenantFlow;
+};
+
+export type PortalSession = {
+  token: string;
+  user: PortalUser & { tenantName: string; flow: TenantFlow };
 };
 
 export type DashboardTenantWhatsapp = {
