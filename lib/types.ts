@@ -165,6 +165,57 @@ export type ConnectLink = {
   qrDataUrl: string | null;
 };
 
+export type IndustryFlowEngineKind = "script" | "salon" | "solar";
+
+export type IndustryFlowStep = {
+  id: string;
+  prompt: string;
+  reask: string;
+  minLength?: number;
+};
+
+export type IndustryFlowDefinitionBody = {
+  intro?: string;
+  aliases?: string[];
+  steps?: IndustryFlowStep[];
+  customerSummaryTemplate?: string[];
+  plaaggInsights: {
+    pipelineStage: string;
+    followUp: string;
+    assignee: string;
+    dashboardInsight: string;
+  };
+  recommendedPlan: {
+    name: string;
+    summary: string;
+    modules: string[];
+  };
+};
+
+export type IndustryFlowRecord = {
+  id: string;
+  tenantId: string;
+  demoMode: string;
+  menuLabel: string;
+  plaaggMenuId: string;
+  sortOrder: number;
+  isActive: boolean;
+  engineKind: IndustryFlowEngineKind;
+  definition: IndustryFlowDefinitionBody;
+  createdAt: string;
+  updatedAt: string;
+};
+
+export type UpsertIndustryFlowBody = {
+  demoMode: string;
+  menuLabel: string;
+  plaaggMenuId: string;
+  sortOrder?: number;
+  isActive?: boolean;
+  engineKind: IndustryFlowEngineKind;
+  definition: IndustryFlowDefinitionBody;
+};
+
 export const TENANT_FLOW_OPTIONS: { value: TenantFlow; label: string }[] = [
   { value: "techfind_demo", label: "Techfind demo" },
   { value: "enquiry_intake", label: "Enquiry intake" },

@@ -33,11 +33,12 @@ import {
   tenantDeskCategory,
   type TenantDeskCategory,
 } from "./status-pill";
+import { PlaaggFlowsPanel } from "./plaagg-flows-panel";
 import { WhatsappPanel } from "./whatsapp-panel";
 
 type TenantSort = "status" | "name";
 
-type Tab = "overview" | "conversations" | "whatsapp";
+type Tab = "overview" | "conversations" | "whatsapp" | "plaagg";
 
 export function DashboardApp() {
   const [booting, setBooting] = useState(true);
@@ -623,6 +624,9 @@ function Desk({
                 [
                   ["overview", "Overview", null],
                   ["conversations", "Conversations", conversationTotal],
+                  ...(selected.flow === "techfind_demo"
+                    ? ([["plaagg", "PLAAGG flows", null]] as const)
+                    : []),
                   [
                     "whatsapp",
                     "WhatsApp",
@@ -689,6 +693,14 @@ function Desk({
                 onUnauthorized={logout}
                 onTotalChange={setConversationTotal}
                 audience="staff"
+              />
+            ) : null}
+            {tab === "plaagg" && selected.flow === "techfind_demo" ? (
+              <PlaaggFlowsPanel
+                key={selected.id}
+                api={api}
+                tenantId={selected.id}
+                onUnauthorized={logout}
               />
             ) : null}
             {tab === "whatsapp" ? (

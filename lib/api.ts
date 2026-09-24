@@ -12,7 +12,9 @@ import type {
   DashboardTenantWhatsapp,
   DashboardToday,
   DemoAnalyticsRow,
+  IndustryFlowRecord,
   LeadScore,
+  UpsertIndustryFlowBody,
   PortalSession,
   PortalUser,
   TenantFlow,
@@ -249,6 +251,30 @@ export function createDashboardApi(credentials: Credentials) {
         `/dashboard/conversations/${encodeURIComponent(id)}/resume-automation?${tenantQuery(tenantId)}`,
         credentials,
         { method: "POST", body: "{}" },
+      ),
+
+    listIndustryFlows: (tenantId: string) =>
+      request<IndustryFlowRecord[]>(
+        `/dashboard/tenants/${encodeURIComponent(tenantId)}/industry-flows`,
+        credentials,
+      ),
+
+    createIndustryFlow: (tenantId: string, body: UpsertIndustryFlowBody) =>
+      request<IndustryFlowRecord>(
+        `/dashboard/tenants/${encodeURIComponent(tenantId)}/industry-flows`,
+        credentials,
+        { method: "POST", body: JSON.stringify(body) },
+      ),
+
+    updateIndustryFlow: (
+      tenantId: string,
+      flowId: string,
+      body: UpsertIndustryFlowBody,
+    ) =>
+      request<IndustryFlowRecord>(
+        `/dashboard/tenants/${encodeURIComponent(tenantId)}/industry-flows/${encodeURIComponent(flowId)}`,
+        credentials,
+        { method: "PATCH", body: JSON.stringify(body) },
       ),
   };
 }
