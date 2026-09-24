@@ -770,7 +770,9 @@ function ConversationThread({
               {lead ? (
                 <div className="absolute right-0 z-10 mt-2 w-72 rounded-xl border border-line bg-card p-3 shadow-lg">
                   <dl className="space-y-2 text-sm">
+                    <Field label="Contact" value={lead.contactName} />
                     <Field label="Business" value={lead.businessName} />
+                    <Field label="Service" value={lead.serviceRequired} />
                     <Field label="Score" value={lead.leadScore} />
                     <Field label="Summary" value={lead.conversationSummary} />
                   </dl>
