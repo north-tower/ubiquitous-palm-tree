@@ -6,10 +6,17 @@ import {
   type TenantReadApi,
 } from "@/lib/api";
 import { labelize } from "@/lib/format";
-import type { DashboardFunnel, DashboardToday, DemoAnalyticsRow } from "@/lib/types";
+import type {
+  DashboardFunnel,
+  DashboardToday,
+  DemoAnalyticsRow,
+  TenantFlow,
+} from "@/lib/types";
 import { useEffect, useState } from "react";
 
-const TODAY_FIELDS: { key: keyof DashboardToday; label: string }[] = [
+type TodayCountKey = Exclude<keyof DashboardToday, "flow">;
+
+const TECHFIND_TODAY_FIELDS: { key: TodayCountKey; label: string }[] = [
   { key: "whatsappConversations", label: "WhatsApp conversations" },
   { key: "newProspects", label: "New prospects" },
   { key: "simulationsStarted", label: "Simulations started" },
@@ -20,13 +27,31 @@ const TODAY_FIELDS: { key: keyof DashboardToday; label: string }[] = [
   { key: "humanHandoffs", label: "Human handoffs" },
 ];
 
+const ENQUIRY_TODAY_FIELDS: { key: TodayCountKey; label: string }[] = [
+  { key: "whatsappConversations", label: "WhatsApp conversations" },
+  { key: "newProspects", label: "New conversations" },
+  { key: "enquiriesStarted", label: "Enquiries started" },
+  { key: "enquiriesSubmitted", label: "Enquiries filed" },
+  { key: "humanHandoffs", label: "Handed to the team" },
+];
+
+function resolveFlow(
+  today: DashboardToday | null,
+  funnel: DashboardFunnel | null,
+  hint?: TenantFlow,
+): TenantFlow {
+  return today?.flow ?? funnel?.flow ?? hint ?? "techfind_demo";
+}
+
 export function OverviewPanel({
   api,
   tenantId,
+  flow: flowHint,
   onUnauthorized,
 }: {
   api: TenantReadApi;
   tenantId: string;
+  flow?: TenantFlow;
   onUnauthorized: () => void;
 }) {
   const [reloadKey, setReloadKey] = useState(0);
@@ -76,6 +101,9 @@ export function OverviewPanel({
   const demos = loaded?.key === requestKey ? loaded.demos : null;
   const error = failure?.key === requestKey ? failure.message : null;
   const loading = !today && !error;
+  const flow = resolveFlow(today, funnel, flowHint);
+  const todayFields =
+    flow === "enquiry_intake" ? ENQUIRY_TODAY_FIELDS : TECHFIND_TODAY_FIELDS;
   const maxCount = Math.max(...(funnel?.stages.map((stage) => stage.count) ?? [1]), 1);
 
   return (
@@ -101,7 +129,7 @@ export function OverviewPanel({
       ) : null}
 
       <div className="grid gap-3 sm:grid-cols-2 xl:grid-cols-4">
-        {TODAY_FIELDS.map((field) => (
+        {todayFields.map((field) => (
           <article
             key={field.key}
             className="rounded-2xl border border-line bg-card px-4 py-3"
@@ -117,7 +145,9 @@ export function OverviewPanel({
       <section className="rounded-2xl border border-line bg-card p-4">
         <h2 className="text-lg font-semibold">Funnel</h2>
         <p className="mb-4 text-sm text-muted">
-          All conversations for this tenant, not only today.
+          {flow === "enquiry_intake"
+            ? "How far each conversation has reached in the enquiry intake, not only today."
+            : "All conversations for this tenant, not only today."}
         </p>
         <div className="space-y-3">
           {(funnel?.stages ?? []).map((stage) => (
@@ -145,34 +175,36 @@ export function OverviewPanel({
         </div>
       </section>
 
-      <section className="rounded-2xl border border-line bg-card p-4">
-        <h2 className="mb-3 text-lg font-semibold">Demo analytics</h2>
-        <div className="overflow-x-auto">
-          <table className="w-full min-w-[32rem] text-left text-sm">
-            <thead className="text-muted">
-              <tr>
-                <th className="py-2 font-medium">Demo</th>
-                <th className="py-2 font-medium">Started</th>
-                <th className="py-2 font-medium">Completed</th>
-                <th className="py-2 font-medium">Leads</th>
-                <th className="py-2 font-medium">Meetings</th>
-              </tr>
-            </thead>
-            <tbody>
-              {(demos ?? []).map((row) => (
-                <tr key={row.demoMode} className="border-t border-line">
-                  <td className="py-2 font-medium">{labelize(row.demoMode)}</td>
-                  <td className="py-2">{row.started}</td>
-                  <td className="py-2">{row.completed}</td>
-                  <td className="py-2">{row.leads}</td>
-                  <td className="py-2">{row.meetings}</td>
+      {flow === "techfind_demo" ? (
+        <section className="rounded-2xl border border-line bg-card p-4">
+          <h2 className="mb-3 text-lg font-semibold">Demo analytics</h2>
+          <div className="overflow-x-auto">
+            <table className="w-full min-w-[32rem] text-left text-sm">
+              <thead className="text-muted">
+                <tr>
+                  <th className="py-2 font-medium">Demo</th>
+                  <th className="py-2 font-medium">Started</th>
+                  <th className="py-2 font-medium">Completed</th>
+                  <th className="py-2 font-medium">Leads</th>
+                  <th className="py-2 font-medium">Meetings</th>
                 </tr>
-              ))}
-            </tbody>
-          </table>
-          {loading && !demos ? <p className="text-sm text-muted">Loading demos…</p> : null}
-        </div>
-      </section>
+              </thead>
+              <tbody>
+                {(demos ?? []).map((row) => (
+                  <tr key={row.demoMode} className="border-t border-line">
+                    <td className="py-2 font-medium">{labelize(row.demoMode)}</td>
+                    <td className="py-2">{row.started}</td>
+                    <td className="py-2">{row.completed}</td>
+                    <td className="py-2">{row.leads}</td>
+                    <td className="py-2">{row.meetings}</td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+            {loading && !demos ? <p className="text-sm text-muted">Loading demos…</p> : null}
+          </div>
+        </section>
+      ) : null}
     </div>
   );
 }

@@ -114,6 +114,7 @@ export function ConnectScreen({ token }: { token: string }) {
             <OverviewPanel
               api={api}
               tenantId="self"
+              flow={link.flow}
               onUnauthorized={ignoreUnauthorized}
             />
           ) : null}

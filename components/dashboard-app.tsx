@@ -450,6 +450,7 @@ function Desk({
                 key={selected.id}
                 api={api}
                 tenantId={selected.id}
+                flow={selected.flow}
                 onUnauthorized={logout}
               />
             ) : null}

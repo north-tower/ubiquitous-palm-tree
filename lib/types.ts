@@ -22,6 +22,7 @@ export type ConversationState =
   | "HUMAN_HANDOFF";
 
 export type DashboardToday = {
+  flow: TenantFlow;
   whatsappConversations: number;
   newProspects: number;
   simulationsStarted: number;
@@ -30,6 +31,8 @@ export type DashboardToday = {
   hotLeads: number;
   meetingsBooked: number;
   humanHandoffs: number;
+  enquiriesStarted: number;
+  enquiriesSubmitted: number;
 };
 
 export type FunnelStage = {
@@ -40,6 +43,7 @@ export type FunnelStage = {
 };
 
 export type DashboardFunnel = {
+  flow: TenantFlow;
   stages: FunnelStage[];
 };
 
@@ -118,6 +122,7 @@ export type DashboardTenantWhatsapp = {
 
 export type ConnectLink = {
   name: string;
+  flow: TenantFlow;
   status: BaileysSessionStatus | null;
   linkedPhone: string | null;
   qrDataUrl: string | null;
