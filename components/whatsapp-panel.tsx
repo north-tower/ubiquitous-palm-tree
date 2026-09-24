@@ -2,19 +2,78 @@
 
 import { formatPhone } from "@/lib/format";
 import type { DashboardTenantWhatsapp } from "@/lib/types";
+import { useState } from "react";
 import { statusLabel } from "./status-pill";
 
 export function WhatsappPanel({
   link,
+  connectToken,
 }: {
   link: DashboardTenantWhatsapp | null;
+  connectToken: string | null;
 }) {
-  if (!link) {
-    return <p className="text-sm text-muted">Checking the WhatsApp link…</p>;
+  return (
+    <section className="max-w-xl rounded-2xl border border-line bg-card p-5">
+      <CopyConnectLink token={connectToken} />
+      {!link ? (
+        <p className="text-sm text-muted">Checking the WhatsApp link…</p>
+      ) : (
+        <LinkStatus link={link} />
+      )}
+    </section>
+  );
+}
+
+function CopyConnectLink({ token }: { token: string | null }) {
+  const [copied, setCopied] = useState(false);
+  const [manualUrl, setManualUrl] = useState<string | null>(null);
+
+  if (!token) {
+    return null;
+  }
+
+  async function onCopy() {
+    const url = `${window.location.origin}/connect/${token}`;
+    try {
+      await navigator.clipboard.writeText(url);
+      setManualUrl(null);
+      setCopied(true);
+    } catch {
+      setCopied(false);
+      setManualUrl(url);
+    }
   }
 
   return (
-    <section className="max-w-xl rounded-2xl border border-line bg-card p-5">
+    <div className="mb-5 border-b border-line pb-5">
+      <p className="text-sm text-muted">Tenant connect link</p>
+      <p className="mt-1 text-sm">
+        Send this to the business. They open it and scan the QR with the
+        WhatsApp account they want to connect. That page does not use your
+        desk login.
+      </p>
+      <button
+        type="button"
+        onClick={() => void onCopy()}
+        className="mt-3 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-ink"
+      >
+        {copied ? "Copied" : "Copy connect link"}
+      </button>
+      {manualUrl ? (
+        <input
+          readOnly
+          value={manualUrl}
+          onFocus={(event) => event.currentTarget.select()}
+          className="mt-3 w-full rounded-lg border border-line bg-white px-3 py-2 text-sm"
+        />
+      ) : null}
+    </div>
+  );
+}
+
+function LinkStatus({ link }: { link: DashboardTenantWhatsapp }) {
+  return (
+    <>
       <p className="text-sm text-muted">Link status</p>
       <h2 className="mt-1 text-2xl font-semibold">{statusLabel(link.status)}</h2>
       <p className="mt-2 text-sm">
@@ -65,6 +124,6 @@ export function WhatsappPanel({
           tenant is created and again on boot when Baileys is enabled.
         </p>
       ) : null}
-    </section>
+    </>
   );
 }

@@ -3,6 +3,7 @@ import {
   nairobiDayStartIso,
 } from "./format";
 import type {
+  ConnectLink,
   ConversationDetail,
   ConversationListResult,
   DashboardFunnel,
@@ -106,6 +107,44 @@ export type ConversationQuery = {
   page: number;
 };
 
+export type TenantReadApi = {
+  today: (tenantId: string) => Promise<DashboardToday>;
+  funnel: (tenantId: string) => Promise<DashboardFunnel>;
+  demoAnalytics: (tenantId: string) => Promise<DemoAnalyticsRow[]>;
+  conversations: (
+    tenantId: string,
+    query: ConversationQuery,
+  ) => Promise<ConversationListResult>;
+  conversation: (tenantId: string, id: string) => Promise<ConversationDetail>;
+};
+
+function conversationQueryParams(
+  query: ConversationQuery,
+  tenantId?: string,
+): URLSearchParams {
+  const params = new URLSearchParams({
+    page: String(query.page),
+    pageSize: "25",
+  });
+  if (tenantId) {
+    params.set("tenantId", tenantId);
+  }
+  if (query.leadScore) {
+    params.set("leadScore", query.leadScore);
+  }
+  const demoMode = query.demoMode?.trim();
+  if (demoMode) {
+    params.set("demoMode", demoMode);
+  }
+  if (query.from) {
+    params.set("from", nairobiDayStartIso(query.from));
+  }
+  if (query.to) {
+    params.set("to", nairobiDayEndExclusiveIso(query.to));
+  }
+  return params;
+}
+
 export function createDashboardApi(credentials: Credentials) {
   const tenantQuery = (tenantId: string) =>
     `tenantId=${encodeURIComponent(tenantId)}`;
@@ -144,30 +183,11 @@ export function createDashboardApi(credentials: Credentials) {
         credentials,
       ),
 
-    conversations: (tenantId: string, query: ConversationQuery) => {
-      const params = new URLSearchParams({
-        tenantId,
-        page: String(query.page),
-        pageSize: "25",
-      });
-      if (query.leadScore) {
-        params.set("leadScore", query.leadScore);
-      }
-      const demoMode = query.demoMode?.trim();
-      if (demoMode) {
-        params.set("demoMode", demoMode);
-      }
-      if (query.from) {
-        params.set("from", nairobiDayStartIso(query.from));
-      }
-      if (query.to) {
-        params.set("to", nairobiDayEndExclusiveIso(query.to));
-      }
-      return request<ConversationListResult>(
-        `/dashboard/conversations?${params.toString()}`,
+    conversations: (tenantId: string, query: ConversationQuery) =>
+      request<ConversationListResult>(
+        `/dashboard/conversations?${conversationQueryParams(query, tenantId).toString()}`,
         credentials,
-      );
-    },
+      ),
 
     conversation: (tenantId: string, id: string) =>
       request<ConversationDetail>(
@@ -178,3 +198,58 @@ export function createDashboardApi(credentials: Credentials) {
 }
 
 export type DashboardApi = ReturnType<typeof createDashboardApi>;
+
+/** Public tenant page. Does not send the staff Basic auth header. */
+export function fetchConnectLink(token: string): Promise<ConnectLink> {
+  return publicRequest<ConnectLink>(`/connect/${encodeURIComponent(token)}`);
+}
+
+export function createConnectApi(token: string): TenantReadApi {
+  const root = `/connect/${encodeURIComponent(token)}`;
+  return {
+    today: () => publicRequest<DashboardToday>(`${root}/today`),
+    funnel: () => publicRequest<DashboardFunnel>(`${root}/funnel`),
+    demoAnalytics: () =>
+      publicRequest<DemoAnalyticsRow[]>(`${root}/demo-analytics`),
+    conversations: (_tenantId, query) =>
+      publicRequest<ConversationListResult>(
+        `${root}/conversations?${conversationQueryParams(query).toString()}`,
+      ),
+    conversation: (_tenantId, id) =>
+      publicRequest<ConversationDetail>(
+        `${root}/conversations/${encodeURIComponent(id)}`,
+      ),
+  };
+}
+
+async function publicRequest<T>(path: string): Promise<T> {
+  let response: Response;
+  try {
+    response = await fetch(`/backend${path}`, {
+      headers: { Accept: "application/json" },
+      cache: "no-store",
+    });
+  } catch {
+    throw new ApiError(
+      "Cannot reach this app's API proxy. Is the dev server running?",
+      0,
+    );
+  }
+
+  if (!response.ok) {
+    let message = response.statusText || "Request failed";
+    try {
+      const body = (await response.json()) as { message?: unknown };
+      if (typeof body.message === "string" && body.message) {
+        message = body.message;
+      } else if (Array.isArray(body.message)) {
+        message = body.message.map(String).join(", ");
+      }
+    } catch {
+      // Keep the status text when the body is not JSON.
+    }
+    throw new ApiError(message, response.status);
+  }
+
+  return (await response.json()) as T;
+}

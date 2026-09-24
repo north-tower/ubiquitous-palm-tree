@@ -4,7 +4,7 @@ import {
   isUnauthorized,
   messageFromError,
   type ConversationQuery,
-  type DashboardApi,
+  type TenantReadApi,
 } from "@/lib/api";
 import { formatPhone, formatWhen, labelize } from "@/lib/format";
 import type { ConversationDetail, ConversationListResult, LeadScore } from "@/lib/types";
@@ -24,7 +24,7 @@ export function ConversationsPanel({
   tenantId,
   onUnauthorized,
 }: {
-  api: DashboardApi;
+  api: TenantReadApi;
   tenantId: string;
   onUnauthorized: () => void;
 }) {

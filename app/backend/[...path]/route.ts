@@ -5,6 +5,36 @@ function backendBase(): string {
   return raw.endsWith("/") ? raw : `${raw}/`;
 }
 
+function isProxiedPath(path: string[]): boolean {
+  if (path.length === 0) {
+    return false;
+  }
+  if (path[0] === "dashboard") {
+    return true;
+  }
+  return isConnectPath(path);
+}
+
+const CONNECT_READS = new Set([
+  "today",
+  "funnel",
+  "demo-analytics",
+  "conversations",
+]);
+
+function isConnectPath(path: string[]): boolean {
+  if (path[0] !== "connect" || path[1] === undefined || path[1].length === 0) {
+    return false;
+  }
+  if (path.length === 2) {
+    return true;
+  }
+  if (path.length === 3 && CONNECT_READS.has(path[2])) {
+    return true;
+  }
+  return path.length === 4 && path[2] === "conversations" && path[3].length > 0;
+}
+
 async function proxy(
   request: NextRequest,
   context: { params: Promise<{ path: string[] }> },
@@ -13,7 +43,7 @@ async function proxy(
   const invalidSegment = path.some(
     (segment) => segment === "." || segment === ".." || segment.includes("\\"),
   );
-  if (path.length === 0 || path[0] !== "dashboard" || invalidSegment) {
+  if (!isProxiedPath(path) || invalidSegment) {
     return Response.json({ message: "Unknown dashboard route" }, { status: 404 });
   }
 

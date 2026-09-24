@@ -461,7 +461,12 @@ function Desk({
                 onUnauthorized={logout}
               />
             ) : null}
-            {tab === "whatsapp" ? <WhatsappPanel link={visibleLink} /> : null}
+            {tab === "whatsapp" ? (
+              <WhatsappPanel
+                link={visibleLink}
+                connectToken={selected.connectToken}
+              />
+            ) : null}
           </>
         )}
       </main>

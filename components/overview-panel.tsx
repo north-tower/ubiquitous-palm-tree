@@ -3,7 +3,7 @@
 import {
   isUnauthorized,
   messageFromError,
-  type DashboardApi,
+  type TenantReadApi,
 } from "@/lib/api";
 import { labelize } from "@/lib/format";
 import type { DashboardFunnel, DashboardToday, DemoAnalyticsRow } from "@/lib/types";
@@ -25,7 +25,7 @@ export function OverviewPanel({
   tenantId,
   onUnauthorized,
 }: {
-  api: DashboardApi;
+  api: TenantReadApi;
   tenantId: string;
   onUnauthorized: () => void;
 }) {
