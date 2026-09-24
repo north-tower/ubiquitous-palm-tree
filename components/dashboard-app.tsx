@@ -14,7 +14,7 @@ import {
   type DashboardTenantWhatsapp,
   type TenantFlow,
 } from "@/lib/types";
-import { Plus, Search, X } from "lucide-react";
+import { LogOut, MessageSquare, Plus, Search, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -29,8 +29,10 @@ import {
   compareTenantsByDeskStatus,
   deskCategoryLabel,
   SessionStatusDot,
+  statusLabel,
   StatusPill,
   tenantDeskCategory,
+  type TenantDeskCategory,
 } from "./status-pill";
 import { WhatsappPanel } from "./whatsapp-panel";
 
@@ -208,6 +210,7 @@ function Desk({
   const [newTenantOpen, setNewTenantOpen] = useState(false);
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantSort, setTenantSort] = useState<TenantSort>("status");
+  const [conversationTotal, setConversationTotal] = useState<number | null>(null);
   const listRequest = useRef(0);
 
   const logout = onLogout;
@@ -455,78 +458,80 @@ function Desk({
   }
 
   return (
-    <div className="min-h-screen lg:grid lg:grid-cols-[300px_minmax(0,1fr)]">
-      <aside className="flex flex-col bg-sidebar px-4 py-5 text-stone-100 lg:sticky lg:top-0 lg:h-screen lg:overflow-y-auto">
-        <div className="mb-6 flex items-center justify-between">
-          <p className="text-sm font-medium tracking-[0.16em] text-emerald-200 uppercase">
-            WhatsApp desk
-          </p>
-          <button
-            type="button"
-            onClick={logout}
-            className="text-sm text-stone-300 hover:text-white"
-          >
-            Sign out
-          </button>
+    <div className="min-h-screen lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
+      <aside className="flex flex-col bg-sidebar px-3 py-4 text-stone-100 lg:sticky lg:top-0 lg:h-screen">
+        <div className="mb-5 flex items-center gap-2 px-1">
+          <MessageSquare className="h-5 w-5 text-emerald-300" aria-hidden />
+          <p className="text-sm font-semibold tracking-wide text-white">WhatsApp Desk</p>
         </div>
 
-        <div className="mb-3 flex items-center justify-between gap-2">
-          <p className="text-xs font-medium tracking-wide text-stone-400 uppercase">
-            Tenants
-          </p>
+        <label className="relative mb-3 block px-1">
+          <Search
+            className="pointer-events-none absolute top-1/2 left-3.5 h-3.5 w-3.5 -translate-y-1/2 text-stone-500"
+            aria-hidden
+          />
+          <input
+            type="search"
+            value={tenantSearch}
+            onChange={(event) => setTenantSearch(event.target.value)}
+            placeholder="Search tenants"
+            className="w-full rounded-lg border border-white/10 bg-black/20 py-2 pr-3 pl-9 text-sm outline-none placeholder:text-stone-500 focus:border-emerald-400/60"
+          />
+        </label>
+
+        <div className="mb-4 px-1">
           <button
             type="button"
             onClick={openNewTenantModal}
-            className="inline-flex items-center gap-1 rounded-full bg-emerald-400/15 px-2.5 py-1 text-xs font-semibold text-emerald-100 hover:bg-emerald-400/25"
+            className="inline-flex w-full items-center justify-center gap-1.5 rounded-lg border border-emerald-400/40 px-3 py-2 text-sm font-semibold text-emerald-100 hover:bg-emerald-400/10"
           >
-            <Plus className="h-3.5 w-3.5" aria-hidden />
+            <Plus className="h-4 w-4" aria-hidden />
             New tenant
           </button>
         </div>
 
-        <div className="mb-3 space-y-2">
-          <label className="relative block">
-            <Search
-              className="pointer-events-none absolute top-1/2 left-2.5 h-3.5 w-3.5 -translate-y-1/2 text-stone-400"
-              aria-hidden
-            />
-            <input
-              type="search"
-              value={tenantSearch}
-              onChange={(event) => setTenantSearch(event.target.value)}
-              placeholder="Search tenants…"
-              className="w-full rounded-lg border border-white/15 bg-white/10 py-2 pr-3 pl-8 text-sm outline-none placeholder:text-white/40 focus:border-emerald-300"
-            />
-          </label>
-          <select
-            value={tenantSort}
-            onChange={(event) => setTenantSort(event.target.value as TenantSort)}
-            className="w-full rounded-lg border border-white/15 bg-white/10 px-3 py-1.5 text-xs outline-none focus:border-emerald-300"
-            aria-label="Sort tenants"
-          >
-            <option value="status" className="text-foreground">
-              Sort: status (needs attention first)
-            </option>
-            <option value="name" className="text-foreground">
-              Sort: name A–Z
-            </option>
-          </select>
+        <select
+          value={tenantSort}
+          onChange={(event) => setTenantSort(event.target.value as TenantSort)}
+          className="mb-3 mx-1 rounded-lg border border-white/10 bg-black/20 px-3 py-1.5 text-xs outline-none focus:border-emerald-400/60"
+          aria-label="Sort tenants"
+        >
+          <option value="status" className="text-foreground">
+            Group by status
+          </option>
+          <option value="name" className="text-foreground">
+            Sort A–Z
+          </option>
+        </select>
+
+        {listError ? <p className="mb-3 px-1 text-sm text-rose-200">{listError}</p> : null}
+        <div className="min-h-0 flex-1 overflow-y-auto px-1">
+          <TenantSidebarList
+            tenants={sidebarTenants}
+            selectedId={selectedId}
+            tenantSort={tenantSort}
+            duplicateNameKeys={duplicateNameKeys}
+            onSelect={setSelectedId}
+          />
+          {tenants.length === 0 && !listError ? (
+            <p className="mt-2 text-sm text-stone-400">No tenants yet.</p>
+          ) : null}
+          {tenants.length > 0 && sidebarTenants.length === 0 ? (
+            <p className="mt-2 text-sm text-stone-400">No tenants match your search.</p>
+          ) : null}
         </div>
 
-        {listError ? <p className="mb-3 text-sm text-rose-200">{listError}</p> : null}
-        <TenantSidebarList
-          tenants={sidebarTenants}
-          selectedId={selectedId}
-          tenantSort={tenantSort}
-          duplicateNameKeys={duplicateNameKeys}
-          onSelect={setSelectedId}
-        />
-        {tenants.length === 0 && !listError ? (
-          <p className="mt-2 text-sm text-stone-300">No tenants yet.</p>
-        ) : null}
-        {tenants.length > 0 && sidebarTenants.length === 0 ? (
-          <p className="mt-2 text-sm text-stone-300">No tenants match your search.</p>
-        ) : null}
+        <div className="mt-4 border-t border-white/10 px-1 pt-4">
+          <p className="text-xs text-stone-500">Signed in as staff</p>
+          <button
+            type="button"
+            onClick={logout}
+            className="mt-1 inline-flex items-center gap-1.5 text-sm text-stone-300 hover:text-white"
+          >
+            <LogOut className="h-3.5 w-3.5" aria-hidden />
+            Sign out
+          </button>
+        </div>
       </aside>
 
       {newTenantOpen ? (
@@ -567,8 +572,11 @@ function Desk({
                   <h1 className="text-2xl font-semibold tracking-tight">{selected.name}</h1>
                   <StatusPill status={liveStatus} />
                 </div>
+                {selected.linkedPhone ? (
+                  <p className="mt-1 text-sm text-muted">{formatPhone(selected.linkedPhone)}</p>
+                ) : null}
                 {selected.ownerEmail ? (
-                  <p className="mt-1 text-sm text-muted">
+                  <p className="mt-0.5 text-sm text-muted">
                     Portal: {selected.ownerEmail}
                     {selected.ownerStatus === "invited" ? " · invite pending" : ""}
                     {selected.ownerStatus === "active" ? " · active" : ""}
@@ -637,6 +645,10 @@ function Desk({
                 tenantId={selected.id}
                 flow={selected.flow}
                 onUnauthorized={logout}
+                whatsappStatus={liveStatus}
+                linkedPhone={selected.linkedPhone}
+                ownerStatus={selected.ownerStatus}
+                onConnectWhatsApp={() => setTab("whatsapp")}
               />
             ) : null}
             {tab === "conversations" ? (
