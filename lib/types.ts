@@ -1,6 +1,6 @@
 export type LeadScore = "HOT" | "WARM" | "COLD";
 
-export type TenantFlow = "techfind_demo" | "enquiry_intake";
+export type TenantFlow = "techfind_demo" | "enquiry_intake" | "pos_ops";
 
 export type BaileysSessionStatus =
   | "waiting_for_scan"
@@ -219,4 +219,5 @@ export type UpsertIndustryFlowBody = {
 export const TENANT_FLOW_OPTIONS: { value: TenantFlow; label: string }[] = [
   { value: "techfind_demo", label: "Techfind demo" },
   { value: "enquiry_intake", label: "Enquiry intake" },
+  { value: "pos_ops", label: "Insightful POS ops" },
 ];
