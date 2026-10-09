@@ -2,6 +2,7 @@ import type {
   BaileysSessionStatus,
   LeadScore,
   TenantOwnerStatus,
+  TenantPrimaryChannel,
 } from "@/lib/types";
 
 const SCORE_STYLES: Record<LeadScore, string> = {
@@ -107,7 +108,14 @@ const DESK_CATEGORY_ORDER: Record<TenantDeskCategory, number> = {
 export function tenantDeskCategory(
   status: BaileysSessionStatus | null,
   ownerStatus: TenantOwnerStatus | null,
+  primaryChannel?: TenantPrimaryChannel | null,
 ): TenantDeskCategory {
+  if (primaryChannel === "twilio") {
+    if (ownerStatus === "invited") {
+      return "needs_attention";
+    }
+    return "connected";
+  }
   if (status === "connected") {
     return "connected";
   }
@@ -126,10 +134,11 @@ export function compareTenantsByDeskStatus<
     name: string;
     status: BaileysSessionStatus | null;
     ownerStatus: TenantOwnerStatus | null;
+    primaryChannel?: TenantPrimaryChannel | null;
   },
 >(a: T, b: T): number {
-  const catA = tenantDeskCategory(a.status, a.ownerStatus);
-  const catB = tenantDeskCategory(b.status, b.ownerStatus);
+  const catA = tenantDeskCategory(a.status, a.ownerStatus, a.primaryChannel);
+  const catB = tenantDeskCategory(b.status, b.ownerStatus, b.primaryChannel);
   const byCategory = DESK_CATEGORY_ORDER[catA] - DESK_CATEGORY_ORDER[catB];
   if (byCategory !== 0) {
     return byCategory;

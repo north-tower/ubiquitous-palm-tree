@@ -787,7 +787,11 @@ function TenantSidebarList({
     const groups: { category: TenantDeskCategory; tenants: DashboardTenantSummary[] }[] =
       [];
     for (const tenant of tenants) {
-      const category = tenantDeskCategory(tenant.status, tenant.ownerStatus);
+      const category = tenantDeskCategory(
+        tenant.status,
+        tenant.ownerStatus,
+        tenant.primaryChannel,
+      );
       const last = groups[groups.length - 1];
       if (!last || last.category !== category) {
         groups.push({ category, tenants: [tenant] });
@@ -870,7 +874,14 @@ function TenantSidebarRow({
         </span>
       ) : null}
       {tenant.primaryChannel === "twilio" ? (
-        <span className="mt-1 block text-xs text-stone-300">Twilio API</span>
+        <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-stone-300">
+          <span
+            className="inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-400"
+            title="Twilio channel"
+            aria-label="Twilio channel"
+          />
+          Twilio · Live
+        </span>
       ) : (
         <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-stone-300">
           <SessionStatusDot status={tenant.status} />
