@@ -9,7 +9,7 @@ import {
   pairConnectLink,
   stopConnectPair,
 } from "@/lib/api";
-import { formatPhone } from "@/lib/format";
+import { formatPhone, primaryChannelLabel } from "@/lib/format";
 import { isWhatsappDisconnected } from "@/lib/owner-copy";
 import type { ConnectLink } from "@/lib/types";
 import { useEffect, useState } from "react";
@@ -55,7 +55,9 @@ export function ConnectScreen({ token }: { token: string }) {
     };
   }, [token, pairing]);
 
-  const disconnected = isWhatsappDisconnected(link?.status ?? null);
+  const usesTwilio = link?.primaryChannel === "twilio";
+  const disconnected =
+    !usesTwilio && isWhatsappDisconnected(link?.status ?? null);
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-lg px-4 py-8 sm:px-6">
@@ -66,8 +68,9 @@ export function ConnectScreen({ token }: { token: string }) {
         {link?.name ?? "Link your business number"}
       </h1>
       <p className="mt-2 text-sm text-muted">
-        This page is for scanning a QR code only. Sign in to your portal to see
-        chats and today&apos;s numbers.
+        {usesTwilio
+          ? "This business uses Twilio WhatsApp on the server — no QR scan is needed. Sign in to your portal to see chats."
+          : "This page is for scanning a QR code only. Sign in to your portal to see chats and today's numbers."}
       </p>
 
       {error ? (
@@ -88,19 +91,32 @@ export function ConnectScreen({ token }: { token: string }) {
 
       {link ? (
         <section className="mt-6 rounded-2xl border border-line bg-card p-5">
-          {link.linkedPhone ? (
-            <p className="mb-4 text-sm text-muted">
-              Last linked number: {formatPhone(link.linkedPhone)}
+          {usesTwilio ? (
+            <p className="text-sm leading-relaxed text-muted">
+              Channel: {primaryChannelLabel(link.primaryChannel)}. Inbound
+              messages arrive via Twilio&apos;s webhook on the API (
+              <code className="rounded bg-stone-100 px-1 py-0.5 text-xs">
+                /webhooks/twilio
+              </code>
+              ).
             </p>
-          ) : null}
-          <QrConnect
-            link={link}
-            startPairing={startPairing}
-            onPair={() => pairConnectLink(token)}
-            onStopPair={() => stopConnectPair(token)}
-            onActiveChange={setPairing}
-            connectedNote="This number is connected."
-          />
+          ) : (
+            <>
+              {link.linkedPhone ? (
+                <p className="mb-4 text-sm text-muted">
+                  Last linked number: {formatPhone(link.linkedPhone)}
+                </p>
+              ) : null}
+              <QrConnect
+                link={link}
+                startPairing={startPairing}
+                onPair={() => pairConnectLink(token)}
+                onStopPair={() => stopConnectPair(token)}
+                onActiveChange={setPairing}
+                connectedNote="This number is connected."
+              />
+            </>
+          )}
         </section>
       ) : null}
     </main>

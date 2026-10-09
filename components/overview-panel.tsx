@@ -23,6 +23,7 @@ import type {
   FunnelStage,
   TenantFlow,
   TenantOwnerStatus,
+  TenantPrimaryChannel,
 } from "@/lib/types";
 import { Check, Circle, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -112,6 +113,8 @@ export function OverviewPanel({
   linkedPhone,
   ownerStatus,
   onConnectWhatsApp,
+  onOpenConversations,
+  primaryChannel,
   audience = "staff",
   ownerEmail,
 }: {
@@ -123,6 +126,8 @@ export function OverviewPanel({
   linkedPhone?: string | null;
   ownerStatus?: TenantOwnerStatus | null;
   onConnectWhatsApp?: () => void;
+  onOpenConversations?: () => void;
+  primaryChannel?: TenantPrimaryChannel | null;
   audience?: DeskAudience;
   ownerEmail?: string;
 }) {
@@ -188,11 +193,19 @@ export function OverviewPanel({
     [funnel],
   );
   const maxCount = Math.max(...funnelStages.map((stage) => stage.count), 1);
+  const usesTwilio = primaryChannel === "twilio";
   const showSetupChecklist =
+    !usesTwilio &&
     !loading &&
     !error &&
     tenantNeverConnected(whatsappStatus, linkedPhone) &&
     whatsappConversationCount(funnel) === 0;
+  const showTwilioSetupHint =
+    usesTwilio &&
+    !loading &&
+    !error &&
+    whatsappConversationCount(funnel) === 0 &&
+    (today?.whatsappConversations ?? 0) === 0;
 
   const ownerMetricsLayout = audience === "owner";
 
@@ -206,6 +219,10 @@ export function OverviewPanel({
         <p className="rounded-xl border border-rose-200 bg-rose-50 px-4 py-3 text-sm text-rose-800">
           {error}
         </p>
+      ) : null}
+
+      {showTwilioSetupHint ? (
+        <TwilioStaffSetupHint onOpenConversations={onOpenConversations} />
       ) : null}
 
       {showSetupChecklist ? (
@@ -553,6 +570,37 @@ function OwnerSetupChecklist({
           ))}
         </ol>
       </div>
+    </section>
+  );
+}
+
+function TwilioStaffSetupHint({
+  onOpenConversations,
+}: {
+  onOpenConversations?: () => void;
+}) {
+  return (
+    <section className="rounded-2xl border border-sky-200/80 bg-sky-50/50 p-5 sm:p-6">
+      <h2 className="text-lg font-semibold text-sky-950">Twilio WhatsApp</h2>
+      <p className="mt-2 text-sm leading-relaxed text-sky-950/85">
+        This tenant does not use a QR code. Configure Twilio&apos;s inbound webhook
+        to{" "}
+        <code className="rounded bg-white/80 px-1 py-0.5 text-xs">
+          /webhooks/twilio
+        </code>{" "}
+        on your API host, join the sandbox from a test phone, then send a message
+        to your Twilio WhatsApp number. Threads appear under{" "}
+        <strong>Conversations</strong>.
+      </p>
+      {onOpenConversations ? (
+        <button
+          type="button"
+          onClick={onOpenConversations}
+          className="mt-4 rounded-full bg-accent px-4 py-2 text-sm font-semibold text-accent-ink"
+        >
+          Open Conversations
+        </button>
+      ) : null}
     </section>
   );
 }

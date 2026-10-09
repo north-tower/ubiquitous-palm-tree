@@ -290,7 +290,20 @@ function Desk({
   }, [selectedId]);
 
   useEffect(() => {
+    const row = tenants.find((tenant) => tenant.id === selectedId);
+    if (row?.primaryChannel === "twilio") {
+      setLink(null);
+      setPairing(false);
+    }
+  }, [selectedId, tenants]);
+
+  useEffect(() => {
     if (!selectedId) {
+      return;
+    }
+    const tenantRow = tenants.find((row) => row.id === selectedId);
+    if (tenantRow?.primaryChannel === "twilio") {
+      setLink(null);
       return;
     }
     let cancelled = false;
@@ -325,12 +338,14 @@ function Desk({
       cancelled = true;
       window.clearTimeout(timer);
     };
-  }, [api, selectedId, logout, pairing]);
+  }, [api, selectedId, logout, pairing, tenants]);
 
   const selected = tenants.find((tenant) => tenant.id === selectedId) ?? null;
   const visibleLink = link?.tenantId === selectedId ? link.data : null;
-  const liveStatus: BaileysSessionStatus | null =
-    visibleLink?.status ?? selected?.status ?? null;
+  const usesTwilioChannel = selected?.primaryChannel === "twilio";
+  const liveStatus: BaileysSessionStatus | null = usesTwilioChannel
+    ? null
+    : (visibleLink?.status ?? selected?.status ?? null);
 
   const duplicateNameKeys = useMemo(() => {
     const counts = new Map<string, number>();
@@ -649,11 +664,13 @@ function Desk({
                   [
                     "whatsapp",
                     "WhatsApp",
-                    liveStatus === "connected"
-                      ? "ok-dot"
-                      : liveStatus
-                        ? "dot"
-                        : null,
+                    usesTwilioChannel
+                      ? null
+                      : liveStatus === "connected"
+                        ? "ok-dot"
+                        : liveStatus
+                          ? "dot"
+                          : null,
                   ],
                 ] as const
               ).map(([id, label, badge]) => (
@@ -696,12 +713,14 @@ function Desk({
                 api={api}
                 tenantId={selected.id}
                 flow={selected.flow}
+                primaryChannel={selected.primaryChannel}
                 onUnauthorized={logout}
                 audience="staff"
                 whatsappStatus={liveStatus}
                 linkedPhone={selected.linkedPhone}
                 ownerStatus={selected.ownerStatus}
                 onConnectWhatsApp={() => setTab("whatsapp")}
+                onOpenConversations={() => setTab("conversations")}
               />
             ) : null}
             {tab === "conversations" ? (

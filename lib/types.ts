@@ -167,6 +167,7 @@ export type DashboardTenantWhatsapp = {
 export type ConnectLink = {
   name: string;
   flow: TenantFlow;
+  primaryChannel: TenantPrimaryChannel | null;
   status: BaileysSessionStatus | null;
   linkedPhone: string | null;
   qrDataUrl: string | null;
