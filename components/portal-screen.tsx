@@ -12,7 +12,12 @@ import {
   type PortalApi,
 } from "@/lib/api";
 import { isWhatsappDisconnected } from "@/lib/owner-copy";
-import type { ConnectLink, PortalSession, TenantFlow } from "@/lib/types";
+import type {
+  ConnectLink,
+  PortalSession,
+  TenantFlow,
+  TenantPrimaryChannel,
+} from "@/lib/types";
 import { MessageSquare } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
 
@@ -41,11 +46,15 @@ export function PortalScreen({
   const [tab, setTab] = useState<Tab>("overview");
   const [pairing, setPairing] = useState(false);
   const flow = (session.user.flow ?? "techfind_demo") as TenantFlow;
-  const disconnected = isWhatsappDisconnected(link?.status ?? null);
+  const primaryChannel = session.user.primaryChannel as TenantPrimaryChannel | null;
+  const usesTwilio = primaryChannel === "twilio";
+  const disconnected =
+    !usesTwilio && isWhatsappDisconnected(link?.status ?? null);
   const showWhatsappAlert =
-    link?.status === "logged_out" ||
-    link?.status === null ||
-    link?.status === "waiting_for_scan";
+    !usesTwilio &&
+    (link?.status === "logged_out" ||
+      link?.status === null ||
+      link?.status === "waiting_for_scan");
 
   useEffect(() => {
     let cancelled = false;
@@ -192,6 +201,7 @@ export function PortalScreen({
               link={link}
               connectToken={null}
               flow={flow}
+              primaryChannel={primaryChannel}
               audience="owner"
               onPair={() => api.pairWhatsapp()}
               onStopPair={() => api.stopPairWhatsapp()}

@@ -5,14 +5,16 @@ import {
   isUnauthorized,
   messageFromError,
 } from "@/lib/api";
-import { flowLabel, formatPhone } from "@/lib/format";
+import { flowLabel, formatPhone, primaryChannelLabel } from "@/lib/format";
 import { clearCredentials, loadCredentials, saveCredentials } from "@/lib/session";
 import {
   TENANT_FLOW_OPTIONS,
+  TENANT_PRIMARY_CHANNEL_OPTIONS,
   type BaileysSessionStatus,
   type DashboardTenantSummary,
   type DashboardTenantWhatsapp,
   type TenantFlow,
+  type TenantPrimaryChannel,
 } from "@/lib/types";
 import { LogOut, MessageSquare, Plus, Search, X } from "lucide-react";
 import {
@@ -202,6 +204,8 @@ function Desk({
   const [ownerFirstName, setOwnerFirstName] = useState("");
   const [ownerLastName, setOwnerLastName] = useState("");
   const [flow, setFlow] = useState<TenantFlow>("techfind_demo");
+  const [primaryChannel, setPrimaryChannel] =
+    useState<TenantPrimaryChannel>("baileys");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createNotice, setCreateNotice] = useState<string | null>(null);
@@ -388,6 +392,7 @@ function Desk({
       const created = await api.createTenant({
         name: name.trim(),
         flow,
+        primaryChannel,
         email: ownerEmail.trim(),
         firstName: ownerFirstName.trim(),
         lastName: ownerLastName.trim(),
@@ -395,8 +400,9 @@ function Desk({
       });
       const refreshed = await refreshTenants(created.id);
       if (refreshed) {
-        setTab("whatsapp");
+        setTab(primaryChannel === "baileys" ? "whatsapp" : "overview");
         setName("");
+        setPrimaryChannel("baileys");
         setOwnerEmail("");
         setOwnerFirstName("");
         setOwnerLastName("");
@@ -542,6 +548,7 @@ function Desk({
         <NewTenantModal
           name={name}
           flow={flow}
+          primaryChannel={primaryChannel}
           ownerEmail={ownerEmail}
           ownerFirstName={ownerFirstName}
           ownerLastName={ownerLastName}
@@ -551,6 +558,7 @@ function Desk({
           onClose={closeNewTenantModal}
           onNameChange={setName}
           onFlowChange={setFlow}
+          onPrimaryChannelChange={setPrimaryChannel}
           onOwnerEmailChange={setOwnerEmail}
           onOwnerFirstNameChange={setOwnerFirstName}
           onOwnerLastNameChange={setOwnerLastName}
@@ -571,10 +579,20 @@ function Desk({
           <>
             <header className="mb-5 flex flex-wrap items-start justify-between gap-3">
               <div className="min-w-0">
-                <p className="text-sm text-muted">{flowLabel(selected.flow)}</p>
+                <p className="text-sm text-muted">
+                  {flowLabel(selected.flow)}
+                  {" · "}
+                  {primaryChannelLabel(selected.primaryChannel)}
+                </p>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2">
                   <h1 className="text-2xl font-semibold tracking-tight">{selected.name}</h1>
-                  <StatusPill status={liveStatus} />
+                  {selected.primaryChannel === "twilio" ? (
+                    <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-900">
+                      Twilio
+                    </span>
+                  ) : (
+                    <StatusPill status={liveStatus} />
+                  )}
                 </div>
                 {selected.linkedPhone ? (
                   <p className="mt-1 text-sm text-muted">{formatPhone(selected.linkedPhone)}</p>
@@ -588,7 +606,8 @@ function Desk({
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {liveStatus !== "connected" ? (
+                {selected.primaryChannel !== "twilio" &&
+                liveStatus !== "connected" ? (
                   <button
                     type="button"
                     onClick={() => setTab("whatsapp")}
@@ -709,6 +728,7 @@ function Desk({
                 link={visibleLink}
                 connectToken={selected.connectToken}
                 flow={selected.flow}
+                primaryChannel={selected.primaryChannel}
                 onPair={() => api.pairTenant(selected.id)}
                 onStopPair={() => api.stopTenantPair(selected.id)}
                 onActiveChange={setPairing}
@@ -821,6 +841,8 @@ function TenantSidebarRow({
       <span className="block truncate text-sm font-semibold text-white">{tenant.name}</span>
       <span className="mt-0.5 block truncate text-xs text-stone-400">
         {flowLabel(tenant.flow)}
+        {" · "}
+        {primaryChannelLabel(tenant.primaryChannel)}
         {tenant.linkedPhone ? ` · ${formatPhone(tenant.linkedPhone)}` : ""}
       </span>
       {showOwnerEmail && tenant.ownerEmail ? (
@@ -828,10 +850,14 @@ function TenantSidebarRow({
           {tenant.ownerEmail}
         </span>
       ) : null}
-      <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-stone-300">
-        <SessionStatusDot status={tenant.status} />
-        {statusLabel(tenant.status)}
-      </span>
+      {tenant.primaryChannel === "twilio" ? (
+        <span className="mt-1 block text-xs text-stone-300">Twilio API</span>
+      ) : (
+        <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-stone-300">
+          <SessionStatusDot status={tenant.status} />
+          {statusLabel(tenant.status)}
+        </span>
+      )}
     </button>
   );
 }
@@ -839,6 +865,7 @@ function TenantSidebarRow({
 function NewTenantModal({
   name,
   flow,
+  primaryChannel,
   ownerEmail,
   ownerFirstName,
   ownerLastName,
@@ -848,6 +875,7 @@ function NewTenantModal({
   onClose,
   onNameChange,
   onFlowChange,
+  onPrimaryChannelChange,
   onOwnerEmailChange,
   onOwnerFirstNameChange,
   onOwnerLastNameChange,
@@ -855,6 +883,7 @@ function NewTenantModal({
 }: {
   name: string;
   flow: TenantFlow;
+  primaryChannel: TenantPrimaryChannel;
   ownerEmail: string;
   ownerFirstName: string;
   ownerLastName: string;
@@ -864,6 +893,7 @@ function NewTenantModal({
   onClose: () => void;
   onNameChange: (value: string) => void;
   onFlowChange: (value: TenantFlow) => void;
+  onPrimaryChannelChange: (value: TenantPrimaryChannel) => void;
   onOwnerEmailChange: (value: string) => void;
   onOwnerFirstNameChange: (value: string) => void;
   onOwnerLastNameChange: (value: string) => void;
@@ -942,6 +972,30 @@ function NewTenantModal({
                 </option>
               ))}
             </select>
+          </label>
+          <label className="block text-sm">
+            <span className="mb-1 block text-muted">WhatsApp channel</span>
+            <select
+              value={primaryChannel}
+              onChange={(event) =>
+                onPrimaryChannelChange(event.target.value as TenantPrimaryChannel)
+              }
+              className="w-full rounded-xl border border-line bg-white px-3 py-2"
+            >
+              {TENANT_PRIMARY_CHANNEL_OPTIONS.map((option) => (
+                <option key={option.value} value={option.value}>
+                  {option.label}
+                </option>
+              ))}
+            </select>
+            <span className="mt-1 block text-xs text-muted">
+              {
+                TENANT_PRIMARY_CHANNEL_OPTIONS.find(
+                  (option) => option.value === primaryChannel,
+                )?.hint
+              }{" "}
+              This cannot be changed after the tenant is created.
+            </span>
           </label>
           <label className="block text-sm">
             <span className="mb-1 block text-muted">Owner email</span>

@@ -18,6 +18,7 @@ import type {
   PortalSession,
   PortalUser,
   TenantFlow,
+  TenantPrimaryChannel,
 } from "./types";
 
 export type Credentials = {
@@ -169,6 +170,7 @@ export function createDashboardApi(credentials: Credentials) {
     createTenant: (body: {
       name: string;
       flow: TenantFlow;
+      primaryChannel: TenantPrimaryChannel;
       email?: string;
       firstName?: string;
       lastName?: string;
@@ -320,7 +322,14 @@ export function createPortalApi(sessionToken: string) {
     bearerRequest<T>(path, auth, init);
 
   return {
-    me: () => bearer<PortalUser & { tenantName: string; flow: TenantFlow }>("/portal/me"),
+    me: () =>
+      bearer<
+        PortalUser & {
+          tenantName: string;
+          flow: TenantFlow;
+          primaryChannel: TenantPrimaryChannel | null;
+        }
+      >("/portal/me"),
 
     logout: () =>
       bearer<{ ok: true }>("/portal/logout", { method: "POST", body: "{}" }),

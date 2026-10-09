@@ -1,5 +1,10 @@
 import { ownerHiddenNumberLabel, type DeskAudience } from "./owner-copy";
-import { TENANT_FLOW_OPTIONS, type TenantFlow } from "./types";
+import {
+  TENANT_FLOW_OPTIONS,
+  TENANT_PRIMARY_CHANNEL_OPTIONS,
+  type TenantFlow,
+  type TenantPrimaryChannel,
+} from "./types";
 
 const NAIROBI = "Africa/Nairobi";
 
@@ -14,6 +19,18 @@ export function flowLabel(flow: TenantFlow): string {
   return (
     TENANT_FLOW_OPTIONS.find((option) => option.value === flow)?.label ??
     labelize(flow)
+  );
+}
+
+export function primaryChannelLabel(
+  channel: TenantPrimaryChannel | null | undefined,
+): string {
+  if (!channel) {
+    return "Not set (legacy)";
+  }
+  return (
+    TENANT_PRIMARY_CHANNEL_OPTIONS.find((option) => option.value === channel)
+      ?.label ?? labelize(channel)
   );
 }
 

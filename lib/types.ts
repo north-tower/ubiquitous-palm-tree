@@ -2,6 +2,8 @@ export type LeadScore = "HOT" | "WARM" | "COLD";
 
 export type TenantFlow = "techfind_demo" | "enquiry_intake" | "pos_ops";
 
+export type TenantPrimaryChannel = "baileys" | "twilio";
+
 export type BaileysSessionStatus =
   | "waiting_for_scan"
   | "connected"
@@ -113,6 +115,7 @@ export type DashboardTenantSummary = {
   id: string;
   name: string;
   flow: TenantFlow;
+  primaryChannel: TenantPrimaryChannel | null;
   linkedPhone: string | null;
   status: BaileysSessionStatus | null;
   connectToken: string | null;
@@ -148,7 +151,11 @@ export type PortalUser = {
 
 export type PortalSession = {
   token: string;
-  user: PortalUser & { tenantName: string; flow: TenantFlow };
+  user: PortalUser & {
+    tenantName: string;
+    flow: TenantFlow;
+    primaryChannel: TenantPrimaryChannel | null;
+  };
 };
 
 export type DashboardTenantWhatsapp = {
@@ -220,4 +227,21 @@ export const TENANT_FLOW_OPTIONS: { value: TenantFlow; label: string }[] = [
   { value: "techfind_demo", label: "Techfind demo" },
   { value: "enquiry_intake", label: "Enquiry intake" },
   { value: "pos_ops", label: "Insightful POS ops" },
+];
+
+export const TENANT_PRIMARY_CHANNEL_OPTIONS: {
+  value: TenantPrimaryChannel;
+  label: string;
+  hint: string;
+}[] = [
+  {
+    value: "baileys",
+    label: "Baileys (QR link)",
+    hint: "Scan a QR code to connect this business's WhatsApp number.",
+  },
+  {
+    value: "twilio",
+    label: "Twilio WhatsApp",
+    hint: "Uses the Twilio number configured on the API server (sandbox or production).",
+  },
 ];
