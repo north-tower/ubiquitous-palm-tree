@@ -16,7 +16,7 @@ import {
   type TenantFlow,
   type TenantPrimaryChannel,
 } from "@/lib/types";
-import { LogOut, MessageSquare, Plus, Search, X } from "lucide-react";
+import { LogOut, MessageSquare, Plus, Search, Trash2, X } from "lucide-react";
 import {
   useCallback,
   useEffect,
@@ -212,6 +212,9 @@ function Desk({
   const [resending, setResending] = useState(false);
   const [pairing, setPairing] = useState(false);
   const [newTenantOpen, setNewTenantOpen] = useState(false);
+  const [deleteTenantOpen, setDeleteTenantOpen] = useState(false);
+  const [deleting, setDeleting] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
   const [tenantSearch, setTenantSearch] = useState("");
   const [tenantSort, setTenantSort] = useState<TenantSort>("status");
   const [conversationTotal, setConversationTotal] = useState<number | null>(null);
@@ -482,6 +485,46 @@ function Desk({
     }
   }
 
+  function openDeleteTenantModal() {
+    setDeleteError(null);
+    setDeleteTenantOpen(true);
+  }
+
+  function closeDeleteTenantModal() {
+    if (deleting) {
+      return;
+    }
+    setDeleteTenantOpen(false);
+    setDeleteError(null);
+  }
+
+  async function onDeleteTenant() {
+    if (!selected) {
+      return;
+    }
+    const removedId = selected.id;
+    setDeleting(true);
+    setDeleteError(null);
+    setCreateNotice(null);
+    setCreateError(null);
+    try {
+      await api.deleteTenant(removedId);
+      setDeleteTenantOpen(false);
+      setLink(null);
+      setPairing(false);
+      setTab("overview");
+      await refreshTenants();
+    } catch (caught) {
+      if (isUnauthorized(caught)) {
+        logout();
+        return;
+      }
+      setDeleteError(messageFromError(caught));
+    } finally {
+      setDeleting(false);
+    }
+  }
+
   return (
     <div className="min-h-screen lg:grid lg:grid-cols-[280px_minmax(0,1fr)]">
       <aside className="flex flex-col bg-sidebar px-3 py-4 text-stone-100 lg:sticky lg:top-0 lg:h-screen">
@@ -558,6 +601,16 @@ function Desk({
           </button>
         </div>
       </aside>
+
+      {deleteTenantOpen && selected ? (
+        <DeleteTenantModal
+          tenantName={selected.name}
+          deleting={deleting}
+          deleteError={deleteError}
+          onClose={closeDeleteTenantModal}
+          onConfirm={() => void onDeleteTenant()}
+        />
+      ) : null}
 
       {newTenantOpen ? (
         <NewTenantModal
@@ -641,6 +694,14 @@ function Desk({
                     {resending ? "Sending…" : "Resend onboarding email"}
                   </button>
                 ) : null}
+                <button
+                  type="button"
+                  onClick={openDeleteTenantModal}
+                  className="inline-flex items-center gap-1.5 rounded-full border border-rose-200 bg-rose-50 px-3 py-1.5 text-sm font-medium text-rose-900 hover:bg-rose-100"
+                >
+                  <Trash2 className="h-3.5 w-3.5" aria-hidden />
+                  Delete tenant
+                </button>
               </div>
             </header>
             {createNotice && !newTenantOpen ? (
@@ -1087,6 +1148,97 @@ function NewTenantModal({
             ) : null}
           </div>
         </form>
+      </div>
+    </div>
+  );
+}
+
+function DeleteTenantModal({
+  tenantName,
+  deleting,
+  deleteError,
+  onClose,
+  onConfirm,
+}: {
+  tenantName: string;
+  deleting: boolean;
+  deleteError: string | null;
+  onClose: () => void;
+  onConfirm: () => void;
+}) {
+  useEffect(() => {
+    const onKeyDown = (event: KeyboardEvent) => {
+      if (event.key === "Escape" && !deleting) {
+        onClose();
+      }
+    };
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [deleting, onClose]);
+
+  return (
+    <div
+      className="fixed inset-0 z-50 flex items-end justify-center p-4 sm:items-center"
+      role="presentation"
+      onMouseDown={(event) => {
+        if (event.target === event.currentTarget && !deleting) {
+          onClose();
+        }
+      }}
+    >
+      <div className="absolute inset-0 bg-stone-900/50" aria-hidden />
+      <div
+        role="dialog"
+        aria-modal="true"
+        aria-labelledby="delete-tenant-title"
+        className="relative w-full max-w-md rounded-2xl border border-line bg-card p-5 shadow-xl"
+      >
+        <div className="mb-4 flex items-start justify-between gap-3">
+          <div>
+            <h2 id="delete-tenant-title" className="text-lg font-semibold">
+              Delete tenant
+            </h2>
+            <p className="mt-2 text-sm text-muted">
+              Permanently remove{" "}
+              <span className="font-medium text-foreground">{tenantName}</span>
+              . This deletes conversations, portal access, industry flows, and
+              any linked Baileys WhatsApp session for this tenant. This cannot
+              be undone.
+            </p>
+          </div>
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="rounded-lg p-1 text-muted hover:bg-background disabled:opacity-60"
+            aria-label="Close"
+          >
+            <X className="h-5 w-5" aria-hidden />
+          </button>
+        </div>
+        {deleteError ? (
+          <p className="mb-4 rounded-xl border border-rose-200 bg-rose-50 px-3 py-2 text-sm text-rose-800">
+            {deleteError}
+          </p>
+        ) : null}
+        <div className="flex flex-wrap justify-end gap-2">
+          <button
+            type="button"
+            onClick={onClose}
+            disabled={deleting}
+            className="rounded-full border border-line bg-card px-4 py-2 text-sm font-medium disabled:opacity-60"
+          >
+            Cancel
+          </button>
+          <button
+            type="button"
+            onClick={onConfirm}
+            disabled={deleting}
+            className="rounded-full bg-rose-600 px-4 py-2 text-sm font-semibold text-white hover:bg-rose-700 disabled:opacity-60"
+          >
+            {deleting ? "Deleting…" : "Delete permanently"}
+          </button>
+        </div>
       </div>
     </div>
   );

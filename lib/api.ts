@@ -191,6 +191,13 @@ export function createDashboardApi(credentials: Credentials) {
         },
       ),
 
+    deleteTenant: (tenantId: string) =>
+      request<{ ok: true }>(
+        `/dashboard/tenants/${encodeURIComponent(tenantId)}`,
+        credentials,
+        { method: "DELETE" },
+      ),
+
     tenantWhatsapp: (tenantId: string) =>
       request<DashboardTenantWhatsapp>(
         `/dashboard/tenants/${encodeURIComponent(tenantId)}/whatsapp`,
