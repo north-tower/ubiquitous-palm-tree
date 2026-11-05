@@ -1,8 +1,26 @@
 export type LeadScore = "HOT" | "WARM" | "COLD";
 
-export type TenantFlow = "techfind_demo" | "enquiry_intake" | "pos_ops";
+export type TenantFlow = "techfind_demo" | "enquiry_intake" | "pos_ops" | "hmg_consultation";
 
-export type TenantPrimaryChannel = "baileys" | "twilio";
+export type TenantPrimaryChannel = "baileys" | "twilio" | "telnyx";
+
+export function isHostedWhatsappPrimary(
+  channel: TenantPrimaryChannel | null | undefined,
+): boolean {
+  return channel === "twilio" || channel === "telnyx";
+}
+
+export function hostedWhatsappWebhookPath(
+  channel: TenantPrimaryChannel | null | undefined,
+): string | null {
+  if (channel === "twilio") {
+    return "/webhooks/twilio";
+  }
+  if (channel === "telnyx") {
+    return "/webhooks/telnyx";
+  }
+  return null;
+}
 
 export type BaileysSessionStatus =
   | "waiting_for_scan"
@@ -116,6 +134,7 @@ export type DashboardTenantSummary = {
   name: string;
   flow: TenantFlow;
   primaryChannel: TenantPrimaryChannel | null;
+  telnyxWhatsappFrom: string | null;
   linkedPhone: string | null;
   status: BaileysSessionStatus | null;
   connectToken: string | null;
@@ -228,6 +247,7 @@ export const TENANT_FLOW_OPTIONS: { value: TenantFlow; label: string }[] = [
   { value: "techfind_demo", label: "Techfind demo" },
   { value: "enquiry_intake", label: "Enquiry intake" },
   { value: "pos_ops", label: "Insightful POS ops" },
+  { value: "hmg_consultation", label: "HMG consultation" },
 ];
 
 export const TENANT_PRIMARY_CHANNEL_OPTIONS: {
@@ -244,5 +264,10 @@ export const TENANT_PRIMARY_CHANNEL_OPTIONS: {
     value: "twilio",
     label: "Twilio WhatsApp",
     hint: "Uses the Twilio number configured on the API server (sandbox or production).",
+  },
+  {
+    value: "telnyx",
+    label: "Telnyx WhatsApp",
+    hint: "Set the verified WABA number (E.164) when you create the tenant.",
   },
 ];

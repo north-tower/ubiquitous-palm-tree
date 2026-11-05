@@ -5,10 +5,12 @@ import {
   type DeskAudience,
   whatsappStatusLabel,
 } from "@/lib/owner-copy";
-import type {
-  DashboardTenantWhatsapp,
-  TenantFlow,
-  TenantPrimaryChannel,
+import {
+  hostedWhatsappWebhookPath,
+  isHostedWhatsappPrimary,
+  type DashboardTenantWhatsapp,
+  type TenantFlow,
+  type TenantPrimaryChannel,
 } from "@/lib/types";
 import { Lock } from "lucide-react";
 import { QrConnect } from "./qr-connect";
@@ -19,6 +21,7 @@ export function WhatsappPanel({
   connectToken,
   flow,
   primaryChannel,
+  telnyxWhatsappFrom,
   onPair,
   onStopPair,
   onActiveChange,
@@ -28,29 +31,43 @@ export function WhatsappPanel({
   connectToken: string | null;
   flow: TenantFlow;
   primaryChannel: TenantPrimaryChannel | null;
+  telnyxWhatsappFrom?: string | null;
   onPair: () => Promise<unknown>;
   onStopPair: () => Promise<unknown>;
   onActiveChange: (active: boolean) => void;
   audience?: DeskAudience;
 }) {
   const ownerView = audience === "owner";
-  const usesTwilio = primaryChannel === "twilio";
+  const usesHosted = isHostedWhatsappPrimary(primaryChannel);
+  const webhookPath = hostedWhatsappWebhookPath(primaryChannel);
 
   return (
     <div className="flex flex-col gap-5 xl:flex-row xl:items-start">
       <div className="min-w-0 flex-1">
-        {usesTwilio ? (
+        {usesHosted ? (
           <section className="rounded-2xl border border-line bg-card p-6">
             <h2 className="text-lg font-semibold text-foreground">
-              Twilio WhatsApp
+              {primaryChannelLabel(primaryChannel)}
             </h2>
             <p className="mt-2 text-sm leading-relaxed text-muted">
-              This tenant sends and receives through the Twilio number configured
-              on the API server. Point Twilio&apos;s inbound webhook at{" "}
+              {primaryChannel === "telnyx" && telnyxWhatsappFrom ? (
+                <>
+                  Outbound WhatsApp uses{" "}
+                  <span className="font-medium text-foreground">
+                    {formatPhone(telnyxWhatsappFrom)}
+                  </span>
+                  . Point Telnyx inbound webhooks at{" "}
+                </>
+              ) : (
+                <>
+                  This tenant sends and receives through the provider number on
+                  the API server. Point the provider inbound webhook at{" "}
+                </>
+              )}
               <code className="rounded bg-stone-100 px-1 py-0.5 text-xs">
-                /webhooks/twilio
+                {webhookPath ?? "/webhooks/…"}
               </code>
-              . QR pairing is not used for Twilio tenants.
+              . QR pairing is not used for hosted WhatsApp tenants.
             </p>
           </section>
         ) : !link ? (
@@ -82,15 +99,16 @@ export function WhatsappPanel({
         )}
       </div>
 
-      {link || usesTwilio ? (
+      {link || usesHosted ? (
         <aside className="w-full shrink-0 space-y-4 xl:w-72">
           <DetailsCard
             link={link}
             flow={flow}
             primaryChannel={primaryChannel}
+            telnyxWhatsappFrom={telnyxWhatsappFrom}
             audience={audience}
           />
-          {!ownerView && !usesTwilio ? <ConnectLinkSecurityNotice /> : null}
+          {!ownerView && !usesHosted ? <ConnectLinkSecurityNotice /> : null}
         </aside>
       ) : null}
     </div>
@@ -101,11 +119,13 @@ function DetailsCard({
   link,
   flow,
   primaryChannel,
+  telnyxWhatsappFrom,
   audience,
 }: {
   link: DashboardTenantWhatsapp | null;
   flow: TenantFlow;
   primaryChannel: TenantPrimaryChannel | null;
+  telnyxWhatsappFrom?: string | null;
   audience: DeskAudience;
 }) {
   const phone = link?.linkedPhone ? formatPhone(link.linkedPhone) : null;
@@ -113,7 +133,7 @@ function DetailsCard({
     link?.status === "connected" && audience === "staff"
       ? "Linked number"
       : "Last linked number";
-  const usesTwilio = primaryChannel === "twilio";
+  const usesHosted = isHostedWhatsappPrimary(primaryChannel);
 
   return (
     <section className="rounded-2xl border border-line bg-card p-5">
@@ -125,7 +145,7 @@ function DetailsCard({
             {primaryChannelLabel(primaryChannel)}
           </dd>
         </div>
-        {!usesTwilio && link ? (
+        {!usesHosted && link ? (
           <div className="flex items-baseline justify-between gap-3">
             <dt className="text-muted">Status</dt>
             <dd className="font-medium text-right">
@@ -135,7 +155,15 @@ function DetailsCard({
             </dd>
           </div>
         ) : null}
-        {phone && !usesTwilio ? (
+        {usesHosted && primaryChannel === "telnyx" && telnyxWhatsappFrom ? (
+          <div className="flex items-baseline justify-between gap-3">
+            <dt className="text-muted">WhatsApp number</dt>
+            <dd className="font-medium text-right">
+              {formatPhone(telnyxWhatsappFrom)}
+            </dd>
+          </div>
+        ) : null}
+        {phone && !usesHosted ? (
           <div className="flex items-baseline justify-between gap-3">
             <dt className="text-muted">{linkedLabel}</dt>
             <dd className="font-medium text-right">{phone}</dd>

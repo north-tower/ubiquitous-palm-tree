@@ -110,7 +110,7 @@ export function tenantDeskCategory(
   ownerStatus: TenantOwnerStatus | null,
   primaryChannel?: TenantPrimaryChannel | null,
 ): TenantDeskCategory {
-  if (primaryChannel === "twilio") {
+  if (primaryChannel === "twilio" || primaryChannel === "telnyx") {
     if (ownerStatus === "invited") {
       return "needs_attention";
     }

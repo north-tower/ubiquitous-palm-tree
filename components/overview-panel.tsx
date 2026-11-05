@@ -5,7 +5,7 @@ import {
   messageFromError,
   type TenantReadApi,
 } from "@/lib/api";
-import { formatPhone, labelize } from "@/lib/format";
+import { formatPhone, labelize, primaryChannelLabel } from "@/lib/format";
 import {
   demoSectionTitle,
   demoTableHeaders,
@@ -15,15 +15,17 @@ import {
   todayMetricsForAudience,
   type DeskAudience,
 } from "@/lib/owner-copy";
-import type {
-  BaileysSessionStatus,
-  DashboardFunnel,
-  DashboardToday,
-  DemoAnalyticsRow,
-  FunnelStage,
-  TenantFlow,
-  TenantOwnerStatus,
-  TenantPrimaryChannel,
+import {
+  hostedWhatsappWebhookPath,
+  isHostedWhatsappPrimary,
+  type BaileysSessionStatus,
+  type DashboardFunnel,
+  type DashboardToday,
+  type DemoAnalyticsRow,
+  type FunnelStage,
+  type TenantFlow,
+  type TenantOwnerStatus,
+  type TenantPrimaryChannel,
 } from "@/lib/types";
 import { Check, Circle, RefreshCw } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -193,15 +195,15 @@ export function OverviewPanel({
     [funnel],
   );
   const maxCount = Math.max(...funnelStages.map((stage) => stage.count), 1);
-  const usesTwilio = primaryChannel === "twilio";
+  const usesHosted = isHostedWhatsappPrimary(primaryChannel);
   const showSetupChecklist =
-    !usesTwilio &&
+    !usesHosted &&
     !loading &&
     !error &&
     tenantNeverConnected(whatsappStatus, linkedPhone) &&
     whatsappConversationCount(funnel) === 0;
-  const showTwilioSetupHint =
-    usesTwilio &&
+  const showHostedSetupHint =
+    usesHosted &&
     !loading &&
     !error &&
     whatsappConversationCount(funnel) === 0 &&
@@ -221,8 +223,11 @@ export function OverviewPanel({
         </p>
       ) : null}
 
-      {showTwilioSetupHint ? (
-        <TwilioStaffSetupHint onOpenConversations={onOpenConversations} />
+      {showHostedSetupHint ? (
+        <HostedStaffSetupHint
+          primaryChannel={primaryChannel}
+          onOpenConversations={onOpenConversations}
+        />
       ) : null}
 
       {showSetupChecklist ? (
@@ -574,23 +579,31 @@ function OwnerSetupChecklist({
   );
 }
 
-function TwilioStaffSetupHint({
+function HostedStaffSetupHint({
+  primaryChannel,
   onOpenConversations,
 }: {
+  primaryChannel: TenantPrimaryChannel | null;
   onOpenConversations?: () => void;
 }) {
+  const webhookPath =
+    hostedWhatsappWebhookPath(primaryChannel) ?? "/webhooks/…";
+  const isTwilio = primaryChannel === "twilio";
   return (
     <section className="rounded-2xl border border-sky-200/80 bg-sky-50/50 p-5 sm:p-6">
-      <h2 className="text-lg font-semibold text-sky-950">Twilio WhatsApp</h2>
+      <h2 className="text-lg font-semibold text-sky-950">
+        {primaryChannelLabel(primaryChannel)}
+      </h2>
       <p className="mt-2 text-sm leading-relaxed text-sky-950/85">
-        This tenant does not use a QR code. Configure Twilio&apos;s inbound webhook
-        to{" "}
+        This tenant does not use a QR code. Configure the inbound webhook to{" "}
         <code className="rounded bg-white/80 px-1 py-0.5 text-xs">
-          /webhooks/twilio
+          {webhookPath}
         </code>{" "}
-        on your API host, join the sandbox from a test phone, then send a message
-        to your Twilio WhatsApp number. Threads appear under{" "}
-        <strong>Conversations</strong>.
+        on your API host
+        {isTwilio
+          ? ", join the sandbox from a test phone, then send a message to your Twilio WhatsApp number"
+          : ", then send a message to your Telnyx WhatsApp number"}
+        . Threads appear under <strong>Conversations</strong>.
       </p>
       {onOpenConversations ? (
         <button

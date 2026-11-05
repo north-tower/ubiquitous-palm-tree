@@ -171,6 +171,7 @@ export function createDashboardApi(credentials: Credentials) {
       name: string;
       flow: TenantFlow;
       primaryChannel: TenantPrimaryChannel;
+      telnyxWhatsappFrom?: string;
       email?: string;
       firstName?: string;
       lastName?: string;

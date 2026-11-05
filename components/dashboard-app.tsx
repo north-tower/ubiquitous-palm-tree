@@ -10,6 +10,7 @@ import { clearCredentials, loadCredentials, saveCredentials } from "@/lib/sessio
 import {
   TENANT_FLOW_OPTIONS,
   TENANT_PRIMARY_CHANNEL_OPTIONS,
+  isHostedWhatsappPrimary,
   type BaileysSessionStatus,
   type DashboardTenantSummary,
   type DashboardTenantWhatsapp,
@@ -206,6 +207,7 @@ function Desk({
   const [flow, setFlow] = useState<TenantFlow>("techfind_demo");
   const [primaryChannel, setPrimaryChannel] =
     useState<TenantPrimaryChannel>("baileys");
+  const [telnyxWhatsappFrom, setTelnyxWhatsappFrom] = useState("");
   const [creating, setCreating] = useState(false);
   const [createError, setCreateError] = useState<string | null>(null);
   const [createNotice, setCreateNotice] = useState<string | null>(null);
@@ -294,7 +296,7 @@ function Desk({
 
   useEffect(() => {
     const row = tenants.find((tenant) => tenant.id === selectedId);
-    if (row?.primaryChannel === "twilio") {
+    if (isHostedWhatsappPrimary(row?.primaryChannel)) {
       setLink(null);
       setPairing(false);
     }
@@ -305,7 +307,7 @@ function Desk({
       return;
     }
     const tenantRow = tenants.find((row) => row.id === selectedId);
-    if (tenantRow?.primaryChannel === "twilio") {
+    if (isHostedWhatsappPrimary(tenantRow?.primaryChannel)) {
       setLink(null);
       return;
     }
@@ -345,8 +347,8 @@ function Desk({
 
   const selected = tenants.find((tenant) => tenant.id === selectedId) ?? null;
   const visibleLink = link?.tenantId === selectedId ? link.data : null;
-  const usesTwilioChannel = selected?.primaryChannel === "twilio";
-  const liveStatus: BaileysSessionStatus | null = usesTwilioChannel
+  const usesHostedChannel = isHostedWhatsappPrimary(selected?.primaryChannel);
+  const liveStatus: BaileysSessionStatus | null = usesHostedChannel
     ? null
     : (visibleLink?.status ?? selected?.status ?? null);
 
@@ -411,6 +413,9 @@ function Desk({
         name: name.trim(),
         flow,
         primaryChannel,
+        ...(primaryChannel === "telnyx"
+          ? { telnyxWhatsappFrom: telnyxWhatsappFrom.trim() }
+          : {}),
         email: ownerEmail.trim(),
         firstName: ownerFirstName.trim(),
         lastName: ownerLastName.trim(),
@@ -421,6 +426,7 @@ function Desk({
         setTab(primaryChannel === "baileys" ? "whatsapp" : "overview");
         setName("");
         setPrimaryChannel("baileys");
+        setTelnyxWhatsappFrom("");
         setOwnerEmail("");
         setOwnerFirstName("");
         setOwnerLastName("");
@@ -617,6 +623,7 @@ function Desk({
           name={name}
           flow={flow}
           primaryChannel={primaryChannel}
+          telnyxWhatsappFrom={telnyxWhatsappFrom}
           ownerEmail={ownerEmail}
           ownerFirstName={ownerFirstName}
           ownerLastName={ownerLastName}
@@ -627,6 +634,7 @@ function Desk({
           onNameChange={setName}
           onFlowChange={setFlow}
           onPrimaryChannelChange={setPrimaryChannel}
+          onTelnyxWhatsappFromChange={setTelnyxWhatsappFrom}
           onOwnerEmailChange={setOwnerEmail}
           onOwnerFirstNameChange={setOwnerFirstName}
           onOwnerLastNameChange={setOwnerLastName}
@@ -654,9 +662,9 @@ function Desk({
                 </p>
                 <div className="mt-0.5 flex flex-wrap items-center gap-2">
                   <h1 className="text-2xl font-semibold tracking-tight">{selected.name}</h1>
-                  {selected.primaryChannel === "twilio" ? (
+                  {usesHostedChannel ? (
                     <span className="inline-flex items-center gap-1.5 rounded-full border border-sky-200 bg-sky-50 px-2.5 py-0.5 text-xs font-semibold text-sky-900">
-                      Twilio
+                      {primaryChannelLabel(selected.primaryChannel)}
                     </span>
                   ) : (
                     <StatusPill status={liveStatus} />
@@ -674,8 +682,7 @@ function Desk({
                 ) : null}
               </div>
               <div className="flex flex-wrap items-center gap-2">
-                {selected.primaryChannel !== "twilio" &&
-                liveStatus !== "connected" ? (
+                {!usesHostedChannel && liveStatus !== "connected" ? (
                   <button
                     type="button"
                     onClick={() => setTab("whatsapp")}
@@ -725,7 +732,7 @@ function Desk({
                   [
                     "whatsapp",
                     "WhatsApp",
-                    usesTwilioChannel
+                    usesHostedChannel
                       ? null
                       : liveStatus === "connected"
                         ? "ok-dot"
@@ -809,6 +816,7 @@ function Desk({
                 connectToken={selected.connectToken}
                 flow={selected.flow}
                 primaryChannel={selected.primaryChannel}
+                telnyxWhatsappFrom={selected.telnyxWhatsappFrom}
                 onPair={() => api.pairTenant(selected.id)}
                 onStopPair={() => api.stopTenantPair(selected.id)}
                 onActiveChange={setPairing}
@@ -934,14 +942,14 @@ function TenantSidebarRow({
           {tenant.ownerEmail}
         </span>
       ) : null}
-      {tenant.primaryChannel === "twilio" ? (
+      {isHostedWhatsappPrimary(tenant.primaryChannel) ? (
         <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-stone-300">
           <span
             className="inline-block h-2 w-2 shrink-0 rounded-full bg-emerald-400"
-            title="Twilio channel"
-            aria-label="Twilio channel"
+            title={`${primaryChannelLabel(tenant.primaryChannel)} channel`}
+            aria-label={`${primaryChannelLabel(tenant.primaryChannel)} channel`}
           />
-          Twilio · Live
+          {primaryChannelLabel(tenant.primaryChannel)} · Live
         </span>
       ) : (
         <span className="mt-1 inline-flex items-center gap-1.5 text-xs text-stone-300">
@@ -957,6 +965,7 @@ function NewTenantModal({
   name,
   flow,
   primaryChannel,
+  telnyxWhatsappFrom,
   ownerEmail,
   ownerFirstName,
   ownerLastName,
@@ -967,6 +976,7 @@ function NewTenantModal({
   onNameChange,
   onFlowChange,
   onPrimaryChannelChange,
+  onTelnyxWhatsappFromChange,
   onOwnerEmailChange,
   onOwnerFirstNameChange,
   onOwnerLastNameChange,
@@ -975,6 +985,7 @@ function NewTenantModal({
   name: string;
   flow: TenantFlow;
   primaryChannel: TenantPrimaryChannel;
+  telnyxWhatsappFrom: string;
   ownerEmail: string;
   ownerFirstName: string;
   ownerLastName: string;
@@ -985,6 +996,7 @@ function NewTenantModal({
   onNameChange: (value: string) => void;
   onFlowChange: (value: TenantFlow) => void;
   onPrimaryChannelChange: (value: TenantPrimaryChannel) => void;
+  onTelnyxWhatsappFromChange: (value: string) => void;
   onOwnerEmailChange: (value: string) => void;
   onOwnerFirstNameChange: (value: string) => void;
   onOwnerLastNameChange: (value: string) => void;
@@ -1088,6 +1100,26 @@ function NewTenantModal({
               This cannot be changed after the tenant is created.
             </span>
           </label>
+          {primaryChannel === "telnyx" ? (
+            <label className="block text-sm">
+              <span className="mb-1 block text-muted">Telnyx WhatsApp number</span>
+              <input
+                value={telnyxWhatsappFrom}
+                onChange={(event) =>
+                  onTelnyxWhatsappFromChange(event.target.value)
+                }
+                required
+                inputMode="tel"
+                autoComplete="tel"
+                placeholder="+254712345678"
+                className="w-full rounded-xl border border-line bg-white px-3 py-2 font-mono text-sm"
+              />
+              <span className="mt-1 block text-xs text-muted">
+                E.164 format. Must match the number assigned in Telnyx and on your
+                WABA webhook.
+              </span>
+            </label>
+          ) : null}
           <label className="block text-sm">
             <span className="mb-1 block text-muted">Owner email</span>
             <input

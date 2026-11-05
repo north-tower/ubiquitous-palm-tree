@@ -11,7 +11,11 @@ import {
 } from "@/lib/api";
 import { formatPhone, primaryChannelLabel } from "@/lib/format";
 import { isWhatsappDisconnected } from "@/lib/owner-copy";
-import type { ConnectLink } from "@/lib/types";
+import {
+  hostedWhatsappWebhookPath,
+  isHostedWhatsappPrimary,
+  type ConnectLink,
+} from "@/lib/types";
 import { useEffect, useState } from "react";
 
 export function ConnectScreen({ token }: { token: string }) {
@@ -55,9 +59,10 @@ export function ConnectScreen({ token }: { token: string }) {
     };
   }, [token, pairing]);
 
-  const usesTwilio = link?.primaryChannel === "twilio";
+  const usesHosted = isHostedWhatsappPrimary(link?.primaryChannel);
+  const webhookPath = hostedWhatsappWebhookPath(link?.primaryChannel);
   const disconnected =
-    !usesTwilio && isWhatsappDisconnected(link?.status ?? null);
+    !usesHosted && isWhatsappDisconnected(link?.status ?? null);
 
   return (
     <main className="mx-auto min-h-screen w-full max-w-lg px-4 py-8 sm:px-6">
@@ -68,8 +73,8 @@ export function ConnectScreen({ token }: { token: string }) {
         {link?.name ?? "Link your business number"}
       </h1>
       <p className="mt-2 text-sm text-muted">
-        {usesTwilio
-          ? "This business uses Twilio WhatsApp on the server — no QR scan is needed. Sign in to your portal to see chats."
+        {usesHosted
+          ? "This business uses hosted WhatsApp on the server — no QR scan is needed. Sign in to your portal to see chats."
           : "This page is for scanning a QR code only. Sign in to your portal to see chats and today's numbers."}
       </p>
 
@@ -91,12 +96,12 @@ export function ConnectScreen({ token }: { token: string }) {
 
       {link ? (
         <section className="mt-6 rounded-2xl border border-line bg-card p-5">
-          {usesTwilio ? (
+          {usesHosted ? (
             <p className="text-sm leading-relaxed text-muted">
               Channel: {primaryChannelLabel(link.primaryChannel)}. Inbound
-              messages arrive via Twilio&apos;s webhook on the API (
+              messages arrive via the provider webhook on the API (
               <code className="rounded bg-stone-100 px-1 py-0.5 text-xs">
-                /webhooks/twilio
+                {webhookPath ?? "/webhooks/…"}
               </code>
               ).
             </p>

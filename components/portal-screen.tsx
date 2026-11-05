@@ -12,11 +12,12 @@ import {
   type PortalApi,
 } from "@/lib/api";
 import { isWhatsappDisconnected } from "@/lib/owner-copy";
-import type {
-  ConnectLink,
-  PortalSession,
-  TenantFlow,
-  TenantPrimaryChannel,
+import {
+  isHostedWhatsappPrimary,
+  type ConnectLink,
+  type PortalSession,
+  type TenantFlow,
+  type TenantPrimaryChannel,
 } from "@/lib/types";
 import { MessageSquare } from "lucide-react";
 import { useEffect, useMemo, useState } from "react";
@@ -47,11 +48,11 @@ export function PortalScreen({
   const [pairing, setPairing] = useState(false);
   const flow = (session.user.flow ?? "techfind_demo") as TenantFlow;
   const primaryChannel = session.user.primaryChannel as TenantPrimaryChannel | null;
-  const usesTwilio = primaryChannel === "twilio";
+  const usesHosted = isHostedWhatsappPrimary(primaryChannel);
   const disconnected =
-    !usesTwilio && isWhatsappDisconnected(link?.status ?? null);
+    !usesHosted && isWhatsappDisconnected(link?.status ?? null);
   const showWhatsappAlert =
-    !usesTwilio &&
+    !usesHosted &&
     (link?.status === "logged_out" ||
       link?.status === null ||
       link?.status === "waiting_for_scan");
