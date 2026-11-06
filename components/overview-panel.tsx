@@ -225,7 +225,7 @@ export function OverviewPanel({
 
       {showHostedSetupHint ? (
         <HostedStaffSetupHint
-          primaryChannel={primaryChannel}
+          primaryChannel={primaryChannel ?? null}
           onOpenConversations={onOpenConversations}
         />
       ) : null}
